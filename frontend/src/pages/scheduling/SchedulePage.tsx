@@ -120,7 +120,7 @@ export function SchedulePage() {
       header: 'Hours',
       cell: ({ row }) => row.original.plannedHours ?? '—',
     },
-    { header: 'Status', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+    { header: 'Booking status', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   ]
 
   if (canManage) {
@@ -206,10 +206,10 @@ export function SchedulePage() {
                 }}
               >
                 <SelectTrigger className="w-44">
-                  <SelectValue placeholder="All statuses" />
+                  <SelectValue placeholder="All booking statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All statuses</SelectItem>
+                  <SelectItem value="ALL">All booking statuses</SelectItem>
                   <SelectItem value="PLANNED">Planned</SelectItem>
                   <SelectItem value="ACTIVE">Active</SelectItem>
                   <SelectItem value="COMPLETED">Completed</SelectItem>

@@ -56,6 +56,28 @@ describe('EstimatesService', () => {
     expect(audit.record).toHaveBeenCalled();
   });
 
+  it('prices a contract-linked line from the rate card, ignoring a tampered unitPrice', async () => {
+    prisma.contractRateCard.findMany.mockResolvedValue([
+      { id: 'rc-1', contractId: 'contract-1', unitPrice: 110, vatApplicable: true },
+    ]);
+    await service.create(
+      {
+        ...baseDto,
+        contractId: 'contract-1',
+        items: [
+          // Client sends 999 with a rate-card link — server must use 110 + 15% VAT.
+          { contractRateCardId: 'rc-1', description: 'Operator', quantity: 2, hours: 100, unitPrice: 999, vatRate: 0 },
+        ],
+      } as any,
+      makeUser(),
+    );
+
+    const line = prisma.estimate.create.mock.calls[0][0].data.lineItems.create[0];
+    expect(line.unitPrice).toBe(110);
+    expect(line.vatRate).toBe(15);
+    expect(line.lineSubtotal).toBe(22000); // 2 × 100 × 110, not 999
+  });
+
   it('blocks editing an estimate that is not DRAFT', async () => {
     prisma.estimate.findUnique.mockResolvedValue({ id: 'est-1', status: EstimateStatus.SENT });
     await expect(

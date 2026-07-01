@@ -75,17 +75,17 @@ export function VehiclesPage() {
   })
 
   const columns: ColumnDef<Vehicle, unknown>[] = [
-    { header: 'Plate', cell: ({ row }) => <span className="font-medium">{row.original.plateNumber}</span> },
-    { header: 'Type', accessorKey: 'vehicleType' },
-    {
-      header: 'Make / model',
-      cell: ({ row }) =>
-        [row.original.make, row.original.model].filter(Boolean).join(' ') || '—',
-    },
-    { header: 'Ownership', cell: ({ row }) => <StatusBadge status={row.original.ownershipType} /> },
-    { header: 'Registration', cell: ({ row }) => <ExpiryCell value={row.original.registrationExpiry} /> },
-    { header: 'Insurance', cell: ({ row }) => <ExpiryCell value={row.original.insuranceExpiry} /> },
-    { header: 'Inspection', cell: ({ row }) => <ExpiryCell value={row.original.inspectionExpiry} /> },
+    { header: 'Door No.', cell: ({ row }) => row.original.doorNumber ?? '—' },
+    { header: 'Manufacturer', cell: ({ row }) => row.original.make ?? '—' },
+    { header: 'Type', cell: ({ row }) => (row.original.vehicleClass ? <StatusBadge status={row.original.vehicleClass} /> : '—') },
+    { header: 'Car Color', cell: ({ row }) => row.original.color ?? '—' },
+    { header: 'Plate No.', cell: ({ row }) => <span className="font-medium">{row.original.plateNumber}</span> },
+    { header: 'رقم اللوحة', cell: ({ row }) => <span dir="rtl">{row.original.plateNumberAr ?? '—'}</span> },
+    { header: 'Expiration date', cell: ({ row }) => <ExpiryCell value={row.original.registrationExpiry} /> },
+    { header: 'Plate Color', cell: ({ row }) => row.original.plateColor ?? '—' },
+    { header: 'GOV Inspection', cell: ({ row }) => <ExpiryCell value={row.original.inspectionExpiry} /> },
+    { header: 'OC', cell: ({ row }) => <ExpiryCell value={row.original.operatingCardExpiry} /> },
+    { header: 'Aramco Sticker', cell: ({ row }) => <ExpiryCell value={row.original.aramcoStickerExpiry} /> },
     { header: 'Status', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   ]
 

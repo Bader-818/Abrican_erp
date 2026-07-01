@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Trash2, Plus } from 'lucide-react'
@@ -18,18 +18,53 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/Spinner'
 import { fetchClients } from '@/api/clients.api'
-import { fetchContracts } from '@/api/contracts.api'
+import { fetchContract, fetchContracts } from '@/api/contracts.api'
 import { createEstimate } from '@/api/estimates.api'
 import type { EstimateLinePayload } from '@/api/estimates.api'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { formatCurrency } from '@/lib/formatters'
-import type { BillingUnit, LineKind } from '@/types'
+import type { BillingUnit, LineKind, RateCard } from '@/types'
 
 const NONE = 'NONE'
 const LINE_KINDS: LineKind[] = ['LABOR', 'EQUIPMENT', 'MATERIAL', 'STANDBY', 'OTHER']
 const UNITS: BillingUnit[] = ['HOUR', 'DAY', 'TRIP', 'METER', 'UNIT', 'LUMP_SUM']
 
+// Map a contract rate-card unit (MH/EH/EA/VAL…) to the estimate's BillingUnit.
+const UNIT_MAP: Record<string, BillingUnit> = {
+  MH: 'HOUR',
+  EH: 'HOUR',
+  HOUR: 'HOUR',
+  DAY: 'DAY',
+  TRIP: 'TRIP',
+  METER: 'METER',
+  EA: 'UNIT',
+  UNIT: 'UNIT',
+  VAL: 'LUMP_SUM',
+  LUMP_SUM: 'LUMP_SUM',
+}
+
+function lineKindFor(card: RateCard): LineKind {
+  if (/standby/i.test(card.description)) return 'STANDBY'
+  if (/labor/i.test(card.serviceLine)) return 'LABOR'
+  if (/equipment|floodlight|flange/i.test(card.serviceLine)) return 'EQUIPMENT'
+  return 'OTHER'
+}
+
+/** Natural order by item code so 2.2 < 2.10; blank codes sort last. */
+function byItemCode(a: RateCard, b: RateCard): number {
+  if (!a.itemCode) return b.itemCode ? 1 : 0
+  if (!b.itemCode) return -1
+  const pa = a.itemCode.split('.').map(Number)
+  const pb = b.itemCode.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d) return d
+  }
+  return 0
+}
+
 interface LineRow {
+  contractRateCardId?: string
   lineKind: LineKind
   description: string
   quantity: string
@@ -41,6 +76,20 @@ interface LineRow {
 
 function emptyLine(): LineRow {
   return { lineKind: 'LABOR', description: '', quantity: '1', hours: '1', unit: 'HOUR', unitPrice: '', vatRate: '15' }
+}
+
+/** Build a pre-filled line from a contract rate-card item (price editable after). */
+function lineFromRateCard(card: RateCard): LineRow {
+  return {
+    contractRateCardId: card.id,
+    lineKind: lineKindFor(card),
+    description: card.itemCode ? `${card.itemCode} ${card.description}` : card.description,
+    quantity: '1',
+    hours: '1',
+    unit: UNIT_MAP[card.unit] ?? 'UNIT',
+    unitPrice: String(Number(card.unitPrice)),
+    vatRate: card.vatApplicable ? '15' : '0',
+  }
 }
 
 const num = (v: string) => {
@@ -66,7 +115,7 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
   const [plannedEndDate, setEnd] = useState('')
   const [validUntil, setValidUntil] = useState('')
   const [notes, setNotes] = useState('')
-  const [lines, setLines] = useState<LineRow[]>([emptyLine()])
+  const [lines, setLines] = useState<LineRow[]>([])
 
   useEffect(() => {
     if (open) {
@@ -79,7 +128,7 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
       setEnd('')
       setValidUntil('')
       setNotes('')
-      setLines([emptyLine()])
+      setLines([])
     }
   }, [open])
 
@@ -94,6 +143,14 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
     queryFn: () => fetchContracts({ clientId, pageSize: 100 }),
     enabled: open && !!clientId,
   })
+
+  // Rate card of the selected contract — the source of "fixed" line pricing.
+  const { data: selectedContract } = useQuery({
+    queryKey: ['contract', contractId],
+    queryFn: () => fetchContract(contractId),
+    enabled: open && contractId !== NONE,
+  })
+  const rateCards = [...(selectedContract?.rateCards ?? [])].sort(byItemCode)
 
   const totals = useMemo(() => {
     let subtotal = 0
@@ -112,7 +169,11 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
 
   const mutation = useMutation({
     mutationFn: () => {
-      const items: EstimateLinePayload[] = lines.map((l) => ({
+      // Only submit complete lines — drop blank/half-filled rows.
+      const items: EstimateLinePayload[] = lines
+        .filter((l) => l.description.trim() && num(l.quantity) > 0)
+        .map((l) => ({
+        contractRateCardId: l.contractRateCardId,
         lineKind: l.lineKind,
         description: l.description.trim(),
         quantity: num(l.quantity),
@@ -237,59 +298,129 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
 
           {/* Line items */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <Label>Line items</Label>
-              <Button type="button" variant="outline" size="sm" onClick={() => setLines((p) => [...p, emptyLine()])}>
-                <Plus className="h-4 w-4" /> Add line
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <div className="grid grid-cols-[110px_1fr_70px_70px_90px_100px_60px_28px] gap-2 px-1 text-xs font-medium text-slate-500">
-                <span>Kind</span>
-                <span>Description</span>
-                <span className="text-right">Qty</span>
-                <span className="text-right">Hours</span>
-                <span>Unit</span>
-                <span className="text-right">Unit price</span>
-                <span className="text-right">VAT%</span>
-                <span />
-              </div>
-              {lines.map((line, index) => (
-                <div key={index} className="grid grid-cols-[110px_1fr_70px_70px_90px_100px_60px_28px] items-center gap-2">
-                  <Select value={line.lineKind} onValueChange={(v) => updateLine(index, { lineKind: v as LineKind })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {LINE_KINDS.map((k) => (
-                        <SelectItem key={k} value={k}>{k.toLowerCase()}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input value={line.description} onChange={(e) => updateLine(index, { description: e.target.value })} placeholder="e.g. Operator" />
-                  <Input className="text-right" inputMode="decimal" value={line.quantity} onChange={(e) => updateLine(index, { quantity: e.target.value })} />
-                  <Input className="text-right" inputMode="decimal" value={line.hours} onChange={(e) => updateLine(index, { hours: e.target.value })} />
-                  <Select value={line.unit} onValueChange={(v) => updateLine(index, { unit: v as BillingUnit })}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {UNITS.map((u) => (
-                        <SelectItem key={u} value={u}>{u.toLowerCase().replace('_', ' ')}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input className="text-right" inputMode="decimal" value={line.unitPrice} onChange={(e) => updateLine(index, { unitPrice: e.target.value })} />
-                  <Input className="text-right" inputMode="decimal" value={line.vatRate} onChange={(e) => updateLine(index, { vatRate: e.target.value })} />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Remove line"
-                    disabled={lines.length === 1}
-                    onClick={() => setLines((p) => p.filter((_, i) => i !== index))}
+              <div className="flex items-center gap-2">
+                {contractId !== NONE && rateCards.length > 0 ? (
+                  <Select
+                    value=""
+                    onValueChange={(id) => {
+                      const card = rateCards.find((r) => r.id === id)
+                      if (card) setLines((p) => [...p, lineFromRateCard(card)])
+                    }}
                   >
-                    <Trash2 className="h-4 w-4 text-red-600" />
-                  </Button>
-                </div>
-              ))}
+                    <SelectTrigger className="h-9 w-80">
+                      <SelectValue placeholder="Add from contract rate card…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rateCards.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {(c.itemCode ? `${c.itemCode} · ` : '') + c.description} — {formatCurrency(c.unitPrice)}/{c.unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+                <Button type="button" variant="outline" size="sm" onClick={() => setLines((p) => [...p, emptyLine()])}>
+                  <Plus className="h-4 w-4" /> Add line
+                </Button>
+              </div>
             </div>
+            {lines.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-4 py-10 text-center text-sm text-slate-500">
+                No line items yet.{' '}
+                {contractId !== NONE && rateCards.length > 0
+                  ? 'Pick fixed-price items from the contract rate card above, or use “Add line” for a custom price.'
+                  : 'Add a custom line — or choose a contract to pull its fixed rate card.'}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {lines.map((line, index) => {
+                  const sub = num(line.quantity) * num(line.hours) * num(line.unitPrice)
+                  const locked = !!line.contractRateCardId // contract rate → price & VAT fixed
+                  return (
+                    <div key={index} className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-start gap-2">
+                        <Select value={line.lineKind} onValueChange={(v) => updateLine(index, { lineKind: v as LineKind })}>
+                          <SelectTrigger className="h-9 w-32 shrink-0"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {LINE_KINDS.map((k) => (
+                              <SelectItem key={k} value={k}>{k.toLowerCase()}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          className="flex-1"
+                          value={line.description}
+                          onChange={(e) => updateLine(index, { description: e.target.value })}
+                          placeholder="Description (e.g. Operator)"
+                        />
+                        {line.contractRateCardId ? (
+                          <span className="mt-2 shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                            contract rate
+                          </span>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Remove line"
+                          className="shrink-0"
+                          onClick={() => setLines((p) => p.filter((_, i) => i !== index))}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap items-end gap-x-4 gap-y-2 pl-1">
+                        <Field label="Qty">
+                          <Input className="h-9 w-20 text-right" inputMode="decimal" value={line.quantity} onChange={(e) => updateLine(index, { quantity: e.target.value })} />
+                        </Field>
+                        <span className="pb-2 text-slate-400">×</span>
+                        <Field label="Hours">
+                          <Input className="h-9 w-20 text-right" inputMode="decimal" value={line.hours} onChange={(e) => updateLine(index, { hours: e.target.value })} />
+                        </Field>
+                        <Field label="Unit">
+                          <Select value={line.unit} onValueChange={(v) => updateLine(index, { unit: v as BillingUnit })}>
+                            <SelectTrigger className="h-9 w-28"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {UNITS.map((u) => (
+                                <SelectItem key={u} value={u}>{u.toLowerCase().replace('_', ' ')}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Unit price (SAR)">
+                          <Input
+                            className={`h-9 w-28 text-right${locked ? ' bg-slate-100 text-slate-500' : ''}`}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            readOnly={locked}
+                            tabIndex={locked ? -1 : undefined}
+                            title={locked ? 'Fixed contract rate — add a custom line to price it differently' : 'Custom price'}
+                            value={line.unitPrice}
+                            onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="VAT %">
+                          <Input
+                            className="h-9 w-16 text-right bg-slate-100 text-slate-500"
+                            inputMode="decimal"
+                            readOnly
+                            tabIndex={-1}
+                            title="VAT is fixed at the standard rate"
+                            value={line.vatRate}
+                          />
+                        </Field>
+                        <div className="ml-auto pb-0.5 text-right">
+                          <div className="text-xs text-slate-500">Line total</div>
+                          <div className="font-semibold text-slate-900">{formatCurrency(sub)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -313,5 +444,15 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Small labelled wrapper for a compact numeric/select input in a line row. */
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <span className="block text-xs text-slate-500">{label}</span>
+      {children}
+    </div>
   )
 }

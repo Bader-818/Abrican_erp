@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuditAction, JobStatus, Prisma } from '@prisma/client';
+import { AssignmentStatus, AuditAction, JobStatus, Prisma } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuthenticatedUser } from '../common/types/authenticated-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +15,24 @@ import { ALLOWED_TRANSITIONS, isTransitionAllowed } from './job-status.constants
  * Forward-only ordering of the finance lifecycle, used by `applyFinanceStatus`.
  * COMPLETED is index 0 — a job must be at least completed to be billed.
  */
+/**
+ * When a job moves to one of these statuses, its resource bookings are carried
+ * along so the Scheduling view stays in step with the job (a job can't be ACTIVE
+ * while its bookings still read PLANNED). Only the listed source statuses move;
+ * terminal ones (COMPLETED/CANCELLED) are left alone.
+ */
+const ASSIGNMENT_CASCADE: Partial<Record<JobStatus, { to: AssignmentStatus; from: AssignmentStatus[] }>> = {
+  [JobStatus.ACTIVE]: { to: AssignmentStatus.ACTIVE, from: [AssignmentStatus.PLANNED] },
+  [JobStatus.COMPLETED]: {
+    to: AssignmentStatus.COMPLETED,
+    from: [AssignmentStatus.PLANNED, AssignmentStatus.ACTIVE],
+  },
+  [JobStatus.CANCELLED]: {
+    to: AssignmentStatus.CANCELLED,
+    from: [AssignmentStatus.PLANNED, AssignmentStatus.ACTIVE],
+  },
+};
+
 const FINANCE_ORDER: JobStatus[] = [
   JobStatus.COMPLETED,
   JobStatus.COSTING_REVIEW,
@@ -97,6 +115,15 @@ export class JobStatusService {
           reason: dto.overrideReason ?? dto.reason,
         },
       });
+
+      // Carry the job's resource bookings along with the job status.
+      const cascade = ASSIGNMENT_CASCADE[dto.toStatus];
+      if (cascade) {
+        await tx.jobAssignment.updateMany({
+          where: { jobId, status: { in: cascade.from } },
+          data: { status: cascade.to },
+        });
+      }
 
       return result;
     });

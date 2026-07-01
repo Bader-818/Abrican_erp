@@ -103,6 +103,12 @@ enum VehicleStatus {
   OUT_OF_SERVICE
 }
 
+// Light vs heavy vehicle classification.
+enum VehicleClass {
+  LIGHT
+  HEAVY
+}
+
 enum EquipmentStatus {
   AVAILABLE
   ASSIGNED
@@ -595,23 +601,30 @@ model CrewMember {
 }
 
 model Vehicle {
-  id                 String        @id @default(uuid())
-  plateNumber        String        @unique
-  vehicleType        String
-  make               String?
-  model              String?
-  year               Int?
-  ownershipType      OwnershipType
-  status             VehicleStatus @default(AVAILABLE)
-  odometer           Int?
-  fuelType           String?
-  registrationExpiry DateTime?
-  insuranceExpiry    DateTime?
-  inspectionExpiry   DateTime?
-  costRate           Decimal?      @db.Decimal(10, 2)
-  notes              String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id                  String         @id @default(uuid())
+  plateNumber         String         @unique // Plate No. (Latin)
+  plateNumberAr       String? // رقم اللوحة (Arabic plate)
+  doorNumber          String? // fleet door / unit number
+  vehicleType         String // general type, e.g. Flatbed Truck
+  vehicleClass        VehicleClass? // LIGHT or HEAVY
+  make                String? // Manufacturer
+  model               String?
+  year                Int?
+  color               String? // Car Color
+  plateColor          String? // Plate Color (plate category)
+  ownershipType       OwnershipType
+  status              VehicleStatus  @default(AVAILABLE)
+  odometer            Int?
+  fuelType            String?
+  registrationExpiry  DateTime? // Istimara / "Expiration date"
+  insuranceExpiry     DateTime?
+  inspectionExpiry    DateTime? // GOV INSPECTION (MVPI/Fahes)
+  operatingCardExpiry DateTime? // OC (operating card)
+  aramcoStickerExpiry DateTime? // Aramco gate sticker
+  costRate            Decimal?       @db.Decimal(10, 2)
+  notes               String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   assignments JobAssignment[] @relation("VehicleAssignments")
   documents   Document[]      @relation("VehicleDocuments")

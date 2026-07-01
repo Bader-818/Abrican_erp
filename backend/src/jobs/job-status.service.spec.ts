@@ -53,3 +53,42 @@ describe('JobStatusService.applyFinanceStatus', () => {
     expect(prisma.job.update).not.toHaveBeenCalled();
   });
 });
+
+// Job status carries its resource bookings along (Scheduling ↔ Jobs consistency).
+describe('JobStatusService.changeStatus assignment cascade', () => {
+  let prisma: any;
+  let tx: any;
+  let audit: { record: jest.Mock };
+  let service: JobStatusService;
+
+  beforeEach(() => {
+    tx = {
+      job: { update: jest.fn().mockResolvedValue({ id: 'j', status: JobStatus.ACTIVE }) },
+      jobStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+      jobAssignment: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    };
+    prisma = {
+      job: { findUnique: jest.fn().mockResolvedValue({ id: 'j', status: JobStatus.SCHEDULED, actualStartDate: null, actualEndDate: null }) },
+      jobAssignment: { count: jest.fn().mockResolvedValue(2) },
+      $transaction: jest.fn((cb: any) => cb(tx)),
+    };
+    audit = { record: jest.fn().mockResolvedValue(undefined) };
+    service = new JobStatusService(prisma as any, audit as any);
+  });
+
+  const user = { id: 'u', permissions: ['jobs.status_override'] } as any;
+
+  it('activates PLANNED bookings when the job goes ACTIVE', async () => {
+    await service.changeStatus('j', { toStatus: JobStatus.ACTIVE } as any, user);
+    expect(tx.jobAssignment.updateMany).toHaveBeenCalledWith({
+      where: { jobId: 'j', status: { in: ['PLANNED'] } },
+      data: { status: 'ACTIVE' },
+    });
+  });
+
+  it('does not cascade for a non-cascading transition (ON_HOLD)', async () => {
+    prisma.job.findUnique.mockResolvedValue({ id: 'j', status: JobStatus.ACTIVE, actualStartDate: new Date(), actualEndDate: null });
+    await service.changeStatus('j', { toStatus: JobStatus.ON_HOLD } as any, user);
+    expect(tx.jobAssignment.updateMany).not.toHaveBeenCalled();
+  });
+});

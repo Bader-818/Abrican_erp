@@ -9,10 +9,15 @@ import { VehiclesQueryDto } from './dto/vehicles-query.dto';
 const VEHICLE_SELECT = {
   id: true,
   plateNumber: true,
+  plateNumberAr: true,
+  doorNumber: true,
   vehicleType: true,
+  vehicleClass: true,
   make: true,
   model: true,
   year: true,
+  color: true,
+  plateColor: true,
   ownershipType: true,
   status: true,
   odometer: true,
@@ -20,6 +25,8 @@ const VEHICLE_SELECT = {
   registrationExpiry: true,
   insuranceExpiry: true,
   inspectionExpiry: true,
+  operatingCardExpiry: true,
+  aramcoStickerExpiry: true,
   costRate: true,
   notes: true,
   createdAt: true,
@@ -105,7 +112,16 @@ export class VehiclesService {
   }
 
   private toPersistence<T extends UpdateVehicleDto>(dto: T) {
-    const { registrationExpiry, insuranceExpiry, inspectionExpiry, ...rest } = dto;
+    const {
+      registrationExpiry,
+      insuranceExpiry,
+      inspectionExpiry,
+      operatingCardExpiry,
+      aramcoStickerExpiry,
+      ...rest
+    } = dto;
+    const dateField = (value: string | undefined) =>
+      value !== undefined ? (value ? new Date(value) : null) : undefined;
     return {
       ...rest,
       ...(registrationExpiry !== undefined
@@ -116,6 +132,12 @@ export class VehiclesService {
         : {}),
       ...(inspectionExpiry !== undefined
         ? { inspectionExpiry: inspectionExpiry ? new Date(inspectionExpiry) : null }
+        : {}),
+      ...(operatingCardExpiry !== undefined
+        ? { operatingCardExpiry: dateField(operatingCardExpiry) }
+        : {}),
+      ...(aramcoStickerExpiry !== undefined
+        ? { aramcoStickerExpiry: dateField(aramcoStickerExpiry) }
         : {}),
     };
   }

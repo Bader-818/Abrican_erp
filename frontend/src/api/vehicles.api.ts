@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { OwnershipType, PaginatedResult, Vehicle, VehicleStatus } from '@/types'
+import type { OwnershipType, PaginatedResult, Vehicle, VehicleClass, VehicleStatus } from '@/types'
 
 export interface VehiclesQuery {
   page?: number
@@ -11,10 +11,15 @@ export interface VehiclesQuery {
 
 export interface VehiclePayload {
   plateNumber?: string
+  plateNumberAr?: string
+  doorNumber?: string
   vehicleType?: string
+  vehicleClass?: VehicleClass
   make?: string
   model?: string
   year?: number
+  color?: string
+  plateColor?: string
   ownershipType?: OwnershipType
   status?: VehicleStatus
   odometer?: number
@@ -22,6 +27,8 @@ export interface VehiclePayload {
   registrationExpiry?: string
   insuranceExpiry?: string
   inspectionExpiry?: string
+  operatingCardExpiry?: string
+  aramcoStickerExpiry?: string
   costRate?: number
   notes?: string
 }

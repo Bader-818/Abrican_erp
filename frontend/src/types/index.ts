@@ -309,13 +309,20 @@ export interface CrewDetail extends CrewSummary {
   members: CrewMember[]
 }
 
+export type VehicleClass = 'LIGHT' | 'HEAVY'
+
 export interface Vehicle {
   id: string
   plateNumber: string
+  plateNumberAr: string | null
+  doorNumber: string | null
   vehicleType: string
+  vehicleClass: VehicleClass | null
   make: string | null
   model: string | null
   year: number | null
+  color: string | null
+  plateColor: string | null
   ownershipType: OwnershipType
   status: VehicleStatus
   odometer: number | null
@@ -323,6 +330,8 @@ export interface Vehicle {
   registrationExpiry: string | null
   insuranceExpiry: string | null
   inspectionExpiry: string | null
+  operatingCardExpiry: string | null
+  aramcoStickerExpiry: string | null
   costRate: string | null
   notes: string | null
   createdAt: string

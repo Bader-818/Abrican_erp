@@ -7,7 +7,7 @@ import {
 import { AuditAction, BillingUnit, EstimateStatus, LineKind, Prisma } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { paginate } from '../common/helpers/pagination.helper';
-import { computeLine, sumTotals } from '../common/finance/line-math';
+import { computeLine, sumTotals, DEFAULT_VAT_RATE } from '../common/finance/line-math';
 import { AuthenticatedUser } from '../common/types/authenticated-user.interface';
 import { JobsService } from '../jobs/jobs.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -453,14 +453,16 @@ export class EstimatesService {
   }
 
   private async buildLines(items: EstimateLineDto[], contractId?: string | null) {
-    // Validate any referenced rate cards belong to the estimate's contract.
+    // Validate any referenced rate cards belong to the estimate's contract, and
+    // load their price/VAT so contract lines are priced from the card (authoritative).
     const cardIds = items.map((i) => i.contractRateCardId).filter((x): x is string => !!x);
+    const byId = new Map<string, { contractId: string; unitPrice: unknown; vatApplicable: boolean }>();
     if (cardIds.length > 0) {
       const cards = await this.prisma.contractRateCard.findMany({
         where: { id: { in: cardIds } },
-        select: { id: true, contractId: true },
+        select: { id: true, contractId: true, unitPrice: true, vatApplicable: true },
       });
-      const byId = new Map(cards.map((c) => [c.id, c]));
+      for (const c of cards) byId.set(c.id, c);
       for (const cardId of cardIds) {
         const card = byId.get(cardId);
         if (!card) {
@@ -473,11 +475,19 @@ export class EstimatesService {
     }
 
     return items.map((item, index) => {
+      // A line linked to a rate card uses the card's fixed price + VAT — the client
+      // cannot override them. Custom lines (no card) keep their submitted values.
+      const card = item.contractRateCardId ? byId.get(item.contractRateCardId) : undefined;
+      const unitPrice = card ? Number(card.unitPrice) : item.unitPrice;
+      // VAT is system-controlled, never client-set: the card's rate for contract
+      // lines, the standard rate for custom lines.
+      const vatRate = card ? (card.vatApplicable ? DEFAULT_VAT_RATE : 0) : DEFAULT_VAT_RATE;
+
       const amounts = computeLine({
         quantity: item.quantity,
         hours: item.hours,
-        unitPrice: item.unitPrice,
-        vatRate: item.vatRate,
+        unitPrice,
+        vatRate,
       });
       return {
         contractRateCardId: item.contractRateCardId,
@@ -486,8 +496,8 @@ export class EstimatesService {
         quantity: item.quantity,
         hours: item.hours ?? 1,
         unit: item.unit ?? BillingUnit.HOUR,
-        unitPrice: item.unitPrice,
-        vatRate: item.vatRate ?? 15,
+        unitPrice,
+        vatRate,
         lineSubtotal: amounts.lineSubtotal,
         lineVat: amounts.lineVat,
         lineTotal: amounts.lineTotal,

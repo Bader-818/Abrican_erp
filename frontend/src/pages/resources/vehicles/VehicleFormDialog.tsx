@@ -28,13 +28,18 @@ const optionalNumber = (message: string) =>
   z.string().refine((value) => value === '' || (!Number.isNaN(Number(value)) && Number(value) >= 0), message)
 
 const vehicleFormSchema = z.object({
+  doorNumber: z.string().max(30),
   plateNumber: z.string().min(2, 'Plate number is required').max(20),
+  plateNumberAr: z.string().max(20),
   vehicleType: z.string().min(2, 'Vehicle type is required').max(100),
+  vehicleClass: z.enum(['', 'LIGHT', 'HEAVY']),
   make: z.string().max(50),
   model: z.string().max(50),
   year: z
     .string()
     .refine((value) => value === '' || (/^\d{4}$/.test(value) && Number(value) >= 1950), 'Enter a valid year'),
+  color: z.string().max(40),
+  plateColor: z.string().max(40),
   ownershipType: z.enum(['OWNED', 'LEASED', 'RENTED']),
   status: z.enum(['AVAILABLE', 'ASSIGNED', 'IN_USE', 'MAINTENANCE', 'OUT_OF_SERVICE']),
   odometer: optionalNumber('Enter a valid odometer reading'),
@@ -42,6 +47,8 @@ const vehicleFormSchema = z.object({
   registrationExpiry: z.string(),
   insuranceExpiry: z.string(),
   inspectionExpiry: z.string(),
+  operatingCardExpiry: z.string(),
+  aramcoStickerExpiry: z.string(),
   costRate: optionalNumber('Enter a valid rate'),
   notes: z.string().max(2000),
 })
@@ -68,11 +75,16 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
   } = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleFormSchema),
     defaultValues: {
+      doorNumber: '',
       plateNumber: '',
+      plateNumberAr: '',
       vehicleType: '',
+      vehicleClass: '',
       make: '',
       model: '',
       year: '',
+      color: '',
+      plateColor: '',
       ownershipType: 'OWNED',
       status: 'AVAILABLE',
       odometer: '',
@@ -80,6 +92,8 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
       registrationExpiry: '',
       insuranceExpiry: '',
       inspectionExpiry: '',
+      operatingCardExpiry: '',
+      aramcoStickerExpiry: '',
       costRate: '',
       notes: '',
     },
@@ -88,11 +102,16 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
   useEffect(() => {
     if (open) {
       reset({
+        doorNumber: vehicle?.doorNumber ?? '',
         plateNumber: vehicle?.plateNumber ?? '',
+        plateNumberAr: vehicle?.plateNumberAr ?? '',
         vehicleType: vehicle?.vehicleType ?? '',
+        vehicleClass: vehicle?.vehicleClass ?? '',
         make: vehicle?.make ?? '',
         model: vehicle?.model ?? '',
         year: vehicle?.year != null ? String(vehicle.year) : '',
+        color: vehicle?.color ?? '',
+        plateColor: vehicle?.plateColor ?? '',
         ownershipType: vehicle?.ownershipType ?? 'OWNED',
         status: vehicle?.status ?? 'AVAILABLE',
         odometer: vehicle?.odometer != null ? String(vehicle.odometer) : '',
@@ -100,6 +119,8 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
         registrationExpiry: vehicle?.registrationExpiry ? vehicle.registrationExpiry.slice(0, 10) : '',
         insuranceExpiry: vehicle?.insuranceExpiry ? vehicle.insuranceExpiry.slice(0, 10) : '',
         inspectionExpiry: vehicle?.inspectionExpiry ? vehicle.inspectionExpiry.slice(0, 10) : '',
+        operatingCardExpiry: vehicle?.operatingCardExpiry ? vehicle.operatingCardExpiry.slice(0, 10) : '',
+        aramcoStickerExpiry: vehicle?.aramcoStickerExpiry ? vehicle.aramcoStickerExpiry.slice(0, 10) : '',
         costRate: vehicle?.costRate != null ? String(vehicle.costRate) : '',
         notes: vehicle?.notes ?? '',
       })
@@ -109,11 +130,16 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
   const mutation = useMutation({
     mutationFn: async (values: VehicleFormValues) => {
       const payload = {
+        doorNumber: values.doorNumber || undefined,
         plateNumber: values.plateNumber,
+        plateNumberAr: values.plateNumberAr || undefined,
         vehicleType: values.vehicleType,
+        vehicleClass: values.vehicleClass === '' ? undefined : values.vehicleClass,
         make: values.make || undefined,
         model: values.model || undefined,
         year: values.year === '' ? undefined : Number(values.year),
+        color: values.color || undefined,
+        plateColor: values.plateColor || undefined,
         ownershipType: values.ownershipType,
         status: values.status,
         odometer: values.odometer === '' ? undefined : Number(values.odometer),
@@ -121,6 +147,8 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
         registrationExpiry: values.registrationExpiry || undefined,
         insuranceExpiry: values.insuranceExpiry || undefined,
         inspectionExpiry: values.inspectionExpiry || undefined,
+        operatingCardExpiry: values.operatingCardExpiry || undefined,
+        aramcoStickerExpiry: values.aramcoStickerExpiry || undefined,
         costRate: values.costRate === '' ? undefined : Number(values.costRate),
         notes: values.notes || undefined,
       }
@@ -138,6 +166,7 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
 
   const ownershipType = watch('ownershipType')
   const status = watch('status')
+  const vehicleClass = watch('vehicleClass')
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,7 +197,36 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="vehicle-make">Make</Label>
+              <Label htmlFor="vehicle-door">Door number</Label>
+              <Input id="vehicle-door" {...register('doorNumber')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle-plate-ar">Plate (Arabic) · رقم اللوحة</Label>
+              <Input id="vehicle-plate-ar" dir="rtl" {...register('plateNumberAr')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Type (light / heavy)</Label>
+              <Select
+                value={vehicleClass || 'NONE'}
+                onValueChange={(value) =>
+                  setValue('vehicleClass', value === 'NONE' ? '' : (value as 'LIGHT' | 'HEAVY'))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">—</SelectItem>
+                  <SelectItem value="LIGHT">Light</SelectItem>
+                  <SelectItem value="HEAVY">Heavy</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle-make">Manufacturer</Label>
               <Input id="vehicle-make" {...register('make')} />
             </div>
             <div className="space-y-1.5">
@@ -178,6 +236,17 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
             <div className="space-y-1.5">
               <Label htmlFor="vehicle-fuel">Fuel type</Label>
               <Input id="vehicle-fuel" {...register('fuelType')} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle-color">Car color</Label>
+              <Input id="vehicle-color" {...register('color')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle-plate-color">Plate color</Label>
+              <Input id="vehicle-plate-color" {...register('plateColor')} />
             </div>
           </div>
 
@@ -223,9 +292,9 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="vehicle-reg">Registration expiry</Label>
+              <Label htmlFor="vehicle-reg">Registration / Istimara expiry</Label>
               <Input id="vehicle-reg" type="date" {...register('registrationExpiry')} />
             </div>
             <div className="space-y-1.5">
@@ -233,8 +302,19 @@ export function VehicleFormDialog({ open, onOpenChange, vehicle }: VehicleFormDi
               <Input id="vehicle-ins" type="date" {...register('insuranceExpiry')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="vehicle-insp">Inspection expiry</Label>
+              <Label htmlFor="vehicle-insp">Gov inspection expiry</Label>
               <Input id="vehicle-insp" type="date" {...register('inspectionExpiry')} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle-oc">Operating card (OC) expiry</Label>
+              <Input id="vehicle-oc" type="date" {...register('operatingCardExpiry')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vehicle-aramco">Aramco sticker expiry</Label>
+              <Input id="vehicle-aramco" type="date" {...register('aramcoStickerExpiry')} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="vehicle-rate">Cost rate (SAR/day)</Label>

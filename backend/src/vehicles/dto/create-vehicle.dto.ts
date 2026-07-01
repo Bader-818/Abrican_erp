@@ -1,4 +1,4 @@
-import { OwnershipType, VehicleStatus } from '@prisma/client';
+import { OwnershipType, VehicleClass, VehicleStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
@@ -23,6 +23,30 @@ export class CreateVehicleDto {
   @MinLength(2)
   @MaxLength(100)
   vehicleType!: string;
+
+  @IsOptional()
+  @IsEnum(VehicleClass)
+  vehicleClass?: VehicleClass;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  doorNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  plateNumberAr?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  color?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  plateColor?: string;
 
   @IsOptional()
   @IsString()
@@ -70,6 +94,14 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsDateString()
   inspectionExpiry?: string;
+
+  @IsOptional()
+  @IsDateString()
+  operatingCardExpiry?: string;
+
+  @IsOptional()
+  @IsDateString()
+  aramcoStickerExpiry?: string;
 
   @IsOptional()
   @Type(() => Number)

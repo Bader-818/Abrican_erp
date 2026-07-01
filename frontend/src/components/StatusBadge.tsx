@@ -55,6 +55,9 @@ const STATUS_VARIANTS: Record<string, StatusVariant> = {
 
   // Info / brand
   NO_EXPIRY: 'outline',
+  // Vehicle class
+  LIGHT: 'outline',
+  HEAVY: 'warning',
 }
 
 export interface StatusBadgeProps extends Omit<BadgeProps, 'variant'> {
