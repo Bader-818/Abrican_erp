@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { E2E_ADMIN, ensureE2eAdmin } from './e2e-admin';
 
 const noopThrottlerStorage: ThrottlerStorage = {
   increment: async () => ({ totalHits: 1, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }),
@@ -22,6 +23,7 @@ describe('RBAC enforcement (e2e)', () => {
   const viewer = { email: `viewer-${Date.now()}@test.local`, password: 'E2eStr0ng!Pass' };
 
   beforeAll(async () => {
+    await ensureE2eAdmin();
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ThrottlerStorage)
       .useValue(noopThrottlerStorage)
@@ -35,7 +37,7 @@ describe('RBAC enforcement (e2e)', () => {
     http = request(app.getHttpServer());
 
     adminToken = (
-      await http.post('/api/v1/auth/login').send({ email: process.env.ADMIN_EMAIL ?? 'admin@abrican.local', password: process.env.ADMIN_PASSWORD ?? 'Admin@12345' })
+      await http.post('/api/v1/auth/login').send({ email: E2E_ADMIN.email, password: E2E_ADMIN.password })
     ).body.accessToken;
 
     const roles = (await http.get('/api/v1/roles').set('Authorization', `Bearer ${adminToken}`)).body;

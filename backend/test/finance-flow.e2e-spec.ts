@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { E2E_ADMIN, ensureE2eAdmin } from './e2e-admin';
 
 const noopThrottlerStorage: ThrottlerStorage = {
   increment: async () => ({ totalHits: 1, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }),
@@ -53,6 +54,7 @@ describe('Finance value chain (e2e)', () => {
   }
 
   beforeAll(async () => {
+    await ensureE2eAdmin();
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ThrottlerStorage)
       .useValue(noopThrottlerStorage)
@@ -66,7 +68,7 @@ describe('Finance value chain (e2e)', () => {
     http = request(app.getHttpServer());
 
     token = (
-      await http.post('/api/v1/auth/login').send({ email: process.env.ADMIN_EMAIL ?? 'admin@abrican.local', password: process.env.ADMIN_PASSWORD ?? 'Admin@12345' })
+      await http.post('/api/v1/auth/login').send({ email: E2E_ADMIN.email, password: E2E_ADMIN.password })
     ).body.accessToken;
 
     clientId = (

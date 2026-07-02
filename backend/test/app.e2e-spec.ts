@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { E2E_ADMIN, ensureE2eAdmin } from './e2e-admin';
 
 // A no-op throttler storage so rate limiting doesn't interfere with the
 // lockout/reuse scenarios (which intentionally issue many logins).
@@ -26,12 +27,10 @@ describe('Abrican ERP API (e2e)', () => {
   let accessToken: string;
   const createdAssignmentIds: string[] = [];
 
-  const admin = {
-    email: process.env.ADMIN_EMAIL ?? 'admin@abrican.local',
-    password: process.env.ADMIN_PASSWORD ?? 'Admin@12345',
-  };
+  const admin = E2E_ADMIN;
 
   beforeAll(async () => {
+    await ensureE2eAdmin();
     // Disable rate limiting for the test run so the lockout/reuse scenarios
     // (which issue many logins) aren't throttled.
     const moduleFixture: TestingModule = await Test.createTestingModule({
