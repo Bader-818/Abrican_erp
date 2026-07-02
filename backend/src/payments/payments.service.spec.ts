@@ -25,11 +25,22 @@ describe('PaymentsService', () => {
 
   beforeEach(() => {
     const tx = {
-      payment: { create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'pay-1', ...data })) },
-      invoice: { update: jest.fn().mockResolvedValue({}) },
+      payment: {
+        create: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve({
+            id: 'pay-1',
+            ...data,
+            invoice: { invoiceNumber: baseInvoice.invoiceNumber, status: InvoiceStatus.PARTIALLY_PAID },
+          }),
+        ),
+      },
+      invoice: {
+        findUnique: jest.fn().mockResolvedValue({ ...baseInvoice }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
     };
     prisma = {
-      invoice: { findUnique: jest.fn().mockResolvedValue({ ...baseInvoice }), findMany: jest.fn() },
+      invoice: { findUnique: jest.fn(), findMany: jest.fn() },
       payment: { findMany: jest.fn(), count: jest.fn() },
       $transaction: jest.fn((cb: any) => cb(tx)),
       _tx: tx,
@@ -42,7 +53,7 @@ describe('PaymentsService', () => {
   it('records a partial payment, sets invoice PARTIALLY_PAID and advances the job', async () => {
     await service.create({ invoiceId: 'inv-1', amount: 400 }, makeUser());
 
-    expect(prisma._tx.invoice.update).toHaveBeenCalledWith(
+    expect(prisma._tx.invoice.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           paidAmount: 400,
@@ -61,10 +72,10 @@ describe('PaymentsService', () => {
   });
 
   it('marks the invoice PAID and the job PAID when fully settled', async () => {
-    prisma.invoice.findUnique.mockResolvedValue({ ...baseInvoice, paidAmount: 600 });
+    prisma._tx.invoice.findUnique.mockResolvedValue({ ...baseInvoice, paidAmount: 600 });
     await service.create({ invoiceId: 'inv-1', amount: 400 }, makeUser());
 
-    expect(prisma._tx.invoice.update).toHaveBeenCalledWith(
+    expect(prisma._tx.invoice.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ outstandingAmount: 0, status: InvoiceStatus.PAID }),
       }),
@@ -79,18 +90,26 @@ describe('PaymentsService', () => {
   });
 
   it('rejects an overpayment beyond the outstanding balance', async () => {
-    prisma.invoice.findUnique.mockResolvedValue({ ...baseInvoice, paidAmount: 600 });
+    prisma._tx.invoice.findUnique.mockResolvedValue({ ...baseInvoice, paidAmount: 600 });
     await expect(
       service.create({ invoiceId: 'inv-1', amount: 500 }, makeUser()),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma._tx.invoice.updateMany).not.toHaveBeenCalled();
   });
 
   it('refuses to pay an invoice that has not been issued', async () => {
-    prisma.invoice.findUnique.mockResolvedValue({ ...baseInvoice, status: InvoiceStatus.DRAFT });
+    prisma._tx.invoice.findUnique.mockResolvedValue({ ...baseInvoice, status: InvoiceStatus.DRAFT });
     await expect(
       service.create({ invoiceId: 'inv-1', amount: 100 }, makeUser()),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('conflicts when a concurrent payment changed the invoice first (CAS guard)', async () => {
+    prisma._tx.invoice.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      service.create({ invoiceId: 'inv-1', amount: 100 }, makeUser()),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma._tx.payment.create).not.toHaveBeenCalled();
   });
 
   describe('aging', () => {

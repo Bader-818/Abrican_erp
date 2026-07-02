@@ -69,51 +69,60 @@ export class PaymentsService {
    * advances the linked job's status — all atomically.
    */
   async create(dto: CreatePaymentDto, user: AuthenticatedUser, ipAddress?: string) {
-    const invoice = await this.prisma.invoice.findUnique({
-      where: { id: dto.invoiceId },
-      select: {
-        id: true,
-        invoiceNumber: true,
-        clientId: true,
-        jobId: true,
-        status: true,
-        totalAmount: true,
-        paidAmount: true,
-      },
-    });
-    if (!invoice) {
-      throw new BadRequestException('Invalid invoiceId');
-    }
-
-    const payable: InvoiceStatus[] = [InvoiceStatus.SUBMITTED, InvoiceStatus.PARTIALLY_PAID];
-    if (!payable.includes(invoice.status)) {
-      throw new ConflictException(
-        `Payments can only be recorded against a submitted invoice (it is ${invoice.status})`,
-      );
-    }
-
-    const total = Number(invoice.totalAmount);
-    const paidSoFar = Number(invoice.paidAmount);
-    const outstanding = round2(total - paidSoFar);
-    const amount = round2(dto.amount);
-    if (amount > outstanding) {
-      throw new BadRequestException(
-        `Payment (${amount}) exceeds the outstanding balance (${outstanding})`,
-      );
-    }
-
-    const newPaid = round2(paidSoFar + amount);
-    const newOutstanding = round2(total - newPaid);
-    const fullyPaid = newOutstanding <= 0;
-    const newStatus = fullyPaid ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
-
+    // Read, validate, and update inside one transaction: reading paidAmount
+    // outside it would let two concurrent payments both pass the outstanding
+    // -balance check (INV-D7-7). The update is guarded on the paidAmount we
+    // read, so a concurrent payment makes this one retry-ably conflict.
     const payment = await this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findUnique({
+        where: { id: dto.invoiceId },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          clientId: true,
+          jobId: true,
+          status: true,
+          totalAmount: true,
+          paidAmount: true,
+        },
+      });
+      if (!invoice) {
+        throw new BadRequestException('Invalid invoiceId');
+      }
+
+      const payable: InvoiceStatus[] = [InvoiceStatus.SUBMITTED, InvoiceStatus.PARTIALLY_PAID];
+      if (!payable.includes(invoice.status)) {
+        throw new ConflictException(
+          `Payments can only be recorded against a submitted invoice (it is ${invoice.status})`,
+        );
+      }
+
+      const total = Number(invoice.totalAmount);
+      const paidSoFar = Number(invoice.paidAmount);
+      const outstanding = round2(total - paidSoFar);
+      const amount = round2(dto.amount);
+      if (amount > outstanding) {
+        throw new BadRequestException(
+          `Payment (${amount}) exceeds the outstanding balance (${outstanding})`,
+        );
+      }
+
+      const newPaid = round2(paidSoFar + amount);
+      const newOutstanding = round2(total - newPaid);
+      const fullyPaid = newOutstanding <= 0;
+      const newStatus = fullyPaid ? InvoiceStatus.PAID : InvoiceStatus.PARTIALLY_PAID;
+
       // Update the invoice first so the payment's embedded invoice snapshot
       // (PAYMENT_SELECT) reflects the post-payment paid/outstanding/status.
-      await tx.invoice.update({
-        where: { id: invoice.id },
+      const { count } = await tx.invoice.updateMany({
+        where: { id: invoice.id, paidAmount: invoice.paidAmount },
         data: { paidAmount: newPaid, outstandingAmount: newOutstanding, status: newStatus },
       });
+      if (count === 0) {
+        throw new ConflictException(
+          'The invoice was updated by another payment at the same time — please retry',
+        );
+      }
 
       const created = await tx.payment.create({
         data: {
@@ -147,7 +156,11 @@ export class PaymentsService {
       action: AuditAction.CREATE,
       entityType: 'Payment',
       entityId: payment.id,
-      newValue: { invoiceNumber: invoice.invoiceNumber, amount, newStatus },
+      newValue: {
+        invoiceNumber: payment.invoice.invoiceNumber,
+        amount: Number(payment.amount),
+        newStatus: payment.invoice.status,
+      },
       ipAddress,
     });
 

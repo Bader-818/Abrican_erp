@@ -464,9 +464,17 @@ export class InvoicesService {
 
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.invoice.update({
-        where: { id },
+      // Compare-and-swap on APPROVED: a concurrent double-issue must not
+      // consume the PO twice or double-advance the job (INV-X-3).
+      const { count } = await tx.invoice.updateMany({
+        where: { id, status: InvoiceStatus.APPROVED },
         data: { status: InvoiceStatus.SUBMITTED, submittedAt: now },
+      });
+      if (count === 0) {
+        throw new ConflictException('Invoice must be APPROVED to issue');
+      }
+      const result = await tx.invoice.findUniqueOrThrow({
+        where: { id },
         select: INVOICE_DETAIL_SELECT,
       });
 

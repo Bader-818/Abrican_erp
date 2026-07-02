@@ -17,7 +17,11 @@ describe('InvoicesService', () => {
 
   beforeEach(() => {
     const tx = {
-      invoice: { update: jest.fn().mockResolvedValue({ id: 'inv-1', status: InvoiceStatus.SUBMITTED }) },
+      invoice: {
+        update: jest.fn().mockResolvedValue({ id: 'inv-1', status: InvoiceStatus.SUBMITTED }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'inv-1', status: InvoiceStatus.SUBMITTED }),
+      },
       purchaseOrder: { update: jest.fn().mockResolvedValue({}) },
     };
     prisma = {
@@ -93,8 +97,11 @@ describe('InvoicesService', () => {
       prisma.invoice.findUnique.mockResolvedValue(approvedInvoice);
       await service.issue('inv-1', {}, makeUser());
 
-      expect(prisma._tx.invoice.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: InvoiceStatus.SUBMITTED }) }),
+      expect(prisma._tx.invoice.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: InvoiceStatus.APPROVED }),
+          data: expect.objectContaining({ status: InvoiceStatus.SUBMITTED }),
+        }),
       );
       expect(jobStatus.applyFinanceStatus).toHaveBeenCalledWith(
         'job-1',
@@ -122,6 +129,18 @@ describe('InvoicesService', () => {
     it('refuses to issue an invoice that is not APPROVED', async () => {
       prisma.invoice.findUnique.mockResolvedValue({ ...approvedInvoice, status: InvoiceStatus.DRAFT });
       await expect(service.issue('inv-1', {}, makeUser())).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('conflicts on a concurrent double-issue instead of consuming the PO twice (CAS guard)', async () => {
+      prisma.invoice.findUnique.mockResolvedValue({
+        ...approvedInvoice,
+        purchaseOrderId: 'po-1',
+        purchaseOrder: { id: 'po-1', poValue: 100000, consumedAmount: 0 },
+      });
+      prisma._tx.invoice.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.issue('inv-1', {}, makeUser())).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma._tx.purchaseOrder.update).not.toHaveBeenCalled();
+      expect(jobStatus.applyFinanceStatus).not.toHaveBeenCalled();
     });
   });
 });
