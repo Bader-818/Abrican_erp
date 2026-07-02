@@ -27,6 +27,10 @@ jobs:
       DATABASE_URL: postgresql://abrican:abrican_ci_password@localhost:5432/abrican_erp?schema=public
       JWT_ACCESS_SECRET: ci_access_secret
       JWT_REFRESH_SECRET: ci_refresh_secret
+      # Seed needs an explicit password (no default is shipped) and the e2e
+      # suite logs in with it directly, so skip the first-login change gate.
+      ADMIN_PASSWORD: ci_admin_password
+      ADMIN_FORCE_PASSWORD_CHANGE: 'false'
     defaults:
       run:
         working-directory: backend

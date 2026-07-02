@@ -77,9 +77,12 @@ Abrican-erp-system/
 
 4. Log in with the seeded admin account (from `.env`):
    - Email: `ADMIN_EMAIL` (default `admin@abrican.local`)
-   - Password: `ADMIN_PASSWORD`
+   - Password: `ADMIN_PASSWORD` if you set it; otherwise the seed generates a
+     random one and prints it **once** in the backend logs
+     (`docker compose logs backend | grep "Generated admin password"`)
 
-   **Change this password / use a strong value before any non-local deployment.**
+   Either way, the admin is required to set a new password at first login
+   (disable only in CI/test environments via `ADMIN_FORCE_PASSWORD_CHANGE=false`).
 
 ## Local Development (without Docker)
 

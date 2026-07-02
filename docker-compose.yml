@@ -45,7 +45,9 @@ services:
       GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
       ADMIN_NAME: ${ADMIN_NAME:-System Administrator}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@abrican.local}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change_me_admin_password}
+      # No default on purpose (pentest P-01): unset ⇒ the seed generates a
+      # random admin password and prints it once in the backend logs.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     volumes:

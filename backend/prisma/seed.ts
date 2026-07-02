@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
@@ -316,27 +316,55 @@ async function main() {
   console.log('Seeding admin user...');
   const adminRole = await prisma.role.findUniqueOrThrow({ where: { name: 'Admin' } });
   const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@abrican.local';
-  const adminPassword = process.env.ADMIN_PASSWORD ?? 'Admin@12345';
   const adminName = process.env.ADMIN_NAME ?? 'System Administrator';
-  const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {},
-    create: {
-      name: adminName,
-      email: adminEmail,
-      passwordHash,
-      roleId: adminRole.id,
-      status: 'ACTIVE',
-    },
-  });
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (existingAdmin) {
+    console.log(`Admin user ${adminEmail} already exists; credentials left untouched.`);
+  } else {
+    // Never ship a documented default credential (pentest P-01). Without
+    // ADMIN_PASSWORD a random password is generated and printed exactly once.
+    const envPassword = process.env.ADMIN_PASSWORD?.trim();
+    const adminPassword = envPassword || `Abrican-${randomBytes(12).toString('base64url')}`;
+    const mustChangePassword = process.env.ADMIN_FORCE_PASSWORD_CHANGE !== 'false';
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-  await seedClientsContractsAndPurchaseOrders();
-  await seedJobs();
-  await seedResources();
-  await seedAssignments();
-  await seedDocuments();
+    await prisma.user.create({
+      data: {
+        name: adminName,
+        email: adminEmail,
+        passwordHash,
+        roleId: adminRole.id,
+        status: 'ACTIVE',
+        mustChangePassword,
+      },
+    });
+
+    if (!envPassword) {
+      console.log(`Generated admin password for ${adminEmail}: ${adminPassword}`);
+      console.log('Store it now — it is not persisted anywhere else and will not be shown again.');
+    }
+    if (mustChangePassword) {
+      console.log('The admin must set a new password at first login.');
+    }
+  }
+
+  // Demo sections assume either a fresh DB or their own data untouched. On a
+  // dev DB where demo rows were partially deleted, a missing lookup (P2025)
+  // means "demo data diverged" — skip the rest instead of failing the seed.
+  try {
+    await seedClientsContractsAndPurchaseOrders();
+    await seedJobs();
+    await seedResources();
+    await seedAssignments();
+    await seedDocuments();
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2025') {
+      console.warn('Demo data has been modified since seeding; skipping remaining demo sections.');
+    } else {
+      throw error;
+    }
+  }
 
   console.log('Seed completed.');
 }
