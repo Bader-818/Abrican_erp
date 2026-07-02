@@ -8,9 +8,26 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
+/** "Not Found", "Internal Server Error", … from the status code alone. */
+function statusLabel(status: number): string {
+  const key = HttpStatus[status] as string | undefined;
+  if (!key) {
+    return 'Error';
+  }
+  return key
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 /**
  * Normalizes all error responses to a consistent shape:
  * { statusCode, message, error, path, timestamp }
+ *
+ * `error` is derived from the status code, never from the exception class
+ * (pentest P-06), and non-HTTP exceptions never echo their message — internal
+ * details (DB errors etc.) are logged server-side only.
  */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -23,29 +40,25 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
-    let error = 'Internal Server Error';
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const body = exception.getResponse();
       if (typeof body === 'string') {
         message = body;
-        error = exception.name;
       } else if (typeof body === 'object' && body !== null) {
-        const b = body as Record<string, unknown>;
-        message = (b.message as string | string[]) ?? exception.message;
-        error = (b.error as string) ?? exception.name;
+        message = ((body as Record<string, unknown>).message as string | string[]) ?? exception.message;
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
-      error = exception.name;
       this.logger.error(exception.message, exception.stack);
+    } else {
+      this.logger.error(`Non-Error exception thrown: ${String(exception)}`);
     }
 
     response.status(status).json({
       statusCode: status,
       message,
-      error,
+      error: statusLabel(status),
       path: request.url,
       timestamp: new Date().toISOString(),
     });
