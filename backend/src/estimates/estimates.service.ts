@@ -534,15 +534,22 @@ export class EstimatesService {
     }
   }
 
-  /** Sequential per-year number (EST-2026-0001), retried on rare collision. */
+  /**
+   * Sequential per-year number (EST-2026-0001), retried on rare collision.
+   * Derived from the highest existing number — not the row count, which
+   * collides forever once an estimate is deleted.
+   */
   private async withNumber<T>(prefix: string, run: (num: string) => Promise<T>): Promise<T> {
     for (let attempt = 1; ; attempt++) {
       const year = new Date().getFullYear();
       const full = `${prefix}-${year}-`;
-      const count = await this.prisma.estimate.count({
+      const last = await this.prisma.estimate.findFirst({
         where: { estimateNumber: { startsWith: full } },
+        orderBy: { estimateNumber: 'desc' },
+        select: { estimateNumber: true },
       });
-      const number = `${full}${String(count + 1).padStart(4, '0')}`;
+      const next = last ? Number(last.estimateNumber.slice(full.length)) + 1 : 1;
+      const number = `${full}${String(next).padStart(4, '0')}`;
       try {
         return await run(number);
       } catch (error) {

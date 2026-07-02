@@ -20,7 +20,7 @@ describe('EstimatesService', () => {
       contract: { findUnique: jest.fn().mockResolvedValue({ clientId: 'client-1' }) },
       contractRateCard: { findMany: jest.fn().mockResolvedValue([]) },
       estimate: {
-        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'est-1', ...data })),
         findUnique: jest.fn(),
         update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'est-1', ...data })),

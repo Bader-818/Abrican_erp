@@ -10,7 +10,7 @@ describe('JobsService', () => {
   beforeEach(() => {
     const tx = {
       job: {
-        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'job-1', ...data })),
       },
     };
@@ -55,6 +55,13 @@ describe('JobsService', () => {
     const year = new Date().getFullYear();
     expect(result.jobCode).toBe(`JOB-${year}-0001`);
     expect(prisma._tx.job.create).toHaveBeenCalled();
+  });
+
+  it('continues from the highest existing code, not the row count (deleted jobs leave gaps)', async () => {
+    const year = new Date().getFullYear();
+    prisma._tx.job.findFirst.mockResolvedValue({ jobCode: `JOB-${year}-0016` });
+    const result: any = await service.create(dto as any);
+    expect(result.jobCode).toBe(`JOB-${year}-0017`);
   });
 
   it('findOne throws NotFound for a missing job', async () => {

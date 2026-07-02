@@ -98,16 +98,22 @@ export class JobsService {
     await this.validateRelations(dto.clientId, dto.contractId, dto.purchaseOrderId);
     this.validateDates(dto.plannedStartDate, dto.plannedEndDate);
 
-    // Sequential per-year job code (JOB-2026-0001). Generated inside the
-    // create transaction; retried on the (rare) unique-constraint collision
-    // when two jobs are created concurrently.
+    // Sequential per-year job code (JOB-2026-0001). Derived from the highest
+    // existing code — not the row count, which collides forever once a job is
+    // deleted. Retried on the (rare) unique-constraint collision when two
+    // jobs are created concurrently.
     for (let attempt = 1; ; attempt++) {
       const year = new Date().getFullYear();
       const prefix = `JOB-${year}-`;
       try {
         return await this.prisma.$transaction(async (tx) => {
-          const countThisYear = await tx.job.count({ where: { jobCode: { startsWith: prefix } } });
-          const jobCode = `${prefix}${String(countThisYear + 1).padStart(4, '0')}`;
+          const last = await tx.job.findFirst({
+            where: { jobCode: { startsWith: prefix } },
+            orderBy: { jobCode: 'desc' },
+            select: { jobCode: true },
+          });
+          const next = last ? Number(last.jobCode.slice(prefix.length)) + 1 : 1;
+          const jobCode = `${prefix}${String(next).padStart(4, '0')}`;
           return tx.job.create({
             data: {
               jobCode,

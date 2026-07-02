@@ -713,13 +713,22 @@ export class InvoicesService {
     });
   }
 
-  /** Sequential per-year invoice number (INV-2026-0001). */
+  /**
+   * Sequential per-year invoice number (INV-2026-0001), derived from the
+   * highest existing number — not the row count, which collides forever once
+   * an invoice is deleted.
+   */
   private async withNumber<T>(run: (num: string) => Promise<T>): Promise<T> {
     for (let attempt = 1; ; attempt++) {
       const year = new Date().getFullYear();
       const full = `INV-${year}-`;
-      const count = await this.prisma.invoice.count({ where: { invoiceNumber: { startsWith: full } } });
-      const number = `${full}${String(count + 1).padStart(4, '0')}`;
+      const last = await this.prisma.invoice.findFirst({
+        where: { invoiceNumber: { startsWith: full } },
+        orderBy: { invoiceNumber: 'desc' },
+        select: { invoiceNumber: true },
+      });
+      const next = last ? Number(last.invoiceNumber.slice(full.length)) + 1 : 1;
+      const number = `${full}${String(next).padStart(4, '0')}`;
       try {
         return await run(number);
       } catch (error) {

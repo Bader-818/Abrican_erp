@@ -27,7 +27,7 @@ describe('InvoicesService', () => {
       job: { findUnique: jest.fn() },
       estimate: { findUnique: jest.fn() },
       invoice: {
-        count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'inv-1', ...data })),
         findUnique: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
