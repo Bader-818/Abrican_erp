@@ -35,14 +35,17 @@ async function bootstrap() {
     }),
   );
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Abrican ERP API')
-    .setDescription('Phase 1 — Foundation & Operational Core')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  // Swagger is an unauthenticated map of the whole API — never in production (pentest P-04).
+  if (config.get<string>('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Abrican ERP API')
+      .setDescription('Phase 1 — Foundation & Operational Core')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = config.get<number>('PORT', 3000);
   await app.listen(port);
