@@ -132,7 +132,23 @@
       "Bash(awk '/^enum NotificationType/{f=1} f{print} /^}/{if\\(f\\)exit}' prisma/schema.prisma)",
       "Bash(git -C /Users/baderalhajri/Desktop/Abrican-erp-system status --short)",
       "Bash(git -C /Users/baderalhajri/Desktop/Abrican-erp-system log --oneline -3)",
-      "Bash(git commit -m 'docs: project status, system overview, UAT Supabase runbook *)"
+      "Bash(git commit -m 'docs: project status, system overview, UAT Supabase runbook *)",
+      "Bash(DATABASE_URL='postgresql://abrican:abrican_dev_password@localhost:5434/abrican_erp?schema=public' npm run test:e2e)",
+      "Bash(docker exec *)",
+      "Bash(curl -s -X POST http://localhost:3000/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@abrican.local\",\"password\":\"Admin@12345\"}')",
+      "Bash(DATABASE_URL='postgresql://abrican:abrican_dev_password@localhost:5434/abrican_erp?schema=public' npx prisma db seed)",
+      "Bash(DATABASE_URL='postgresql://abrican:abrican_dev_password@localhost:5434/abrican_erp?schema=public' ADMIN_EMAIL='p01-test@abrican.local' npx prisma db seed)",
+      "Bash(DATABASE_URL='postgresql://abrican:abrican_dev_password@localhost:5434/abrican_erp?schema=public' npx jest --config ./test/jest-e2e.json -t 'allows a Viewer')",
+      "Bash(grep -v 'at \\\\|^--$')",
+      "Bash(sed -i '' -e 's|^JWT_ACCESS_SECRET=.*|JWT_ACCESS_SECRET=__TRACKED_VAR__|' -e 's|^JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=__TRACKED_VAR__|' -e 's|^DATABASE_URL=.*|DATABASE_URL=postgresql://abrican:abrican_dev_password@localhost:5434/abrican_erp?schema=public|' .env)",
+      "Bash(echo \"weak-values-remaining: $?\")",
+      "Bash(npm --prefix backend test)",
+      "Bash(npm --prefix backend run test:e2e --silent)",
+      "Bash(git commit -q -m 'fix: close read-outside-transaction races in payments and invoice issue *)",
+      "Bash(curl -s -o /dev/null -w 'backend health after restart: %{http_code}\\\\n' http://localhost:3000/api/v1/health)",
+      "Bash(curl -s -o /dev/null -w 'health: %{http_code}\\\\n' http://localhost:3000/api/v1/health)",
+      "Bash(git commit -q -m 'docs: record handover hardening pass — pentest closed, sweep findings *)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "/tmp"

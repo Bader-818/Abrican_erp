@@ -10,12 +10,16 @@ see the companion [SYSTEM-OVERVIEW.md](SYSTEM-OVERVIEW.md). Other companions:
 
 ## 1. Snapshot
 - **Phase 1 (operational core): complete.** **Phase 2 (finance): S7–S11 built & live; S12–S13 not built.**
-- Codebase audited (consistency + invariants + tests) and pentested (report-first).
+- Codebase audited (consistency + invariants + tests) and pentested — **all 8 pentest
+  findings FIXED 2026-07-02** (handover hardening pass, see [audit/PENTEST.md](audit/PENTEST.md)).
+- Logic sweep 2026-07-02: 4 bugs fixed (F-007…F-010, incl. a HIGH document-numbering bug and
+  two finance race conditions), 2 design questions open (F-011/F-012) — see
+  [audit/FINDINGS.md](audit/FINDINGS.md).
 - Source is on **GitHub** (private, `main`). A **UAT database is live on Supabase** (synthetic data).
 - **Not yet deployed** to any hosted environment; no real users have tested it yet.
 - Verified size: **48 permissions · 10 roles · 29 Prisma models · 27 enums · 8 migrations**.
-- Tests (verified by count 2026-07-02): **177 backend unit** (29 files) · **24 e2e blocks**
-  (3 files) · **25 frontend** (4 files) — all green at last run.
+- Tests (verified 2026-07-02, post-hardening): **187 backend unit** (30 files) · **31 e2e**
+  (3 files) · **27 frontend** (4 files) — all green; `npm audit --omit=dev` clean both apps.
 
 ---
 
@@ -56,9 +60,8 @@ audit log; notifications; operations & assets dashboards. Docker dev stack.
 - **[docs/audit/JOB-LIFECYCLE.md]** — full state-machine review.
 
 ### Infrastructure
-- GitHub repo connected (initial commit + `7cfdb8e`). **Uncommitted right now:**
-  `docs/SYSTEM-OVERVIEW.md`, `docs/UAT-SUPABASE.md`, this file (all untracked), and a modified
-  `.claude/settings.json`.
+- GitHub repo connected; all docs and the 2026-07-02 hardening/logic-sweep commits are on
+  `main` and pushed.
 - UAT DB on Supabase (Sydney/session-pooler), migrated + seeded + contract loaded.
 
 ---
@@ -88,9 +91,9 @@ the SRS, and the audit docs. Nothing here is implemented today.
   target, PO nearly consumed, invoice exceeds PO, invoice overdue, completed-but-not-invoiced,
   expense missing category/allocation, client payment delayed. **Blocked** on adding the
   finance-alert values back to `NotificationType` (it currently has 8 values, none finance).
-- **Consequence — dead lifecycle states:** `COSTING_REVIEW` and `READY_FOR_INVOICE` are valid
-  `JobStatus` values and reachable, but nothing auto-drives them (manual-only) until S12.
-  *Options: hide them from the manual picker, or ship S12.*
+- **Consequence — dead lifecycle states:** ~~selectable but undriven~~ **Resolved 2026-07-02:**
+  `COSTING_REVIEW`/`READY_FOR_INVOICE` are now hidden from the manual picker (frontend only);
+  the backend state machine is unchanged and ready for S12.
 
 ### Compliance / e-invoicing
 - **ZATCA Phase-2 e-invoicing** — only Phase-1 QR (TLV) is emitted today. Phase-2 needs the
@@ -175,14 +178,10 @@ full analytics/exports.
    discovery gap — do a deliberate artifact-collection pass instead of patching field-by-field.
 3. **No backups / DR.** There is still no backup strategy. This must exist *before* any real
    data lands. Supabase UAT has provider backups, but production needs an owned, tested plan.
-4. **Security items are documented but mostly unfixed** (report-first, by choice). All 8
-   PENTEST findings ([docs/audit/PENTEST.md](audit/PENTEST.md)) are open: P-01 default admin
-   password `Admin@12345` (HIGH), P-02 `multer`/`js-yaml` DoS advisories (HIGH), P-03 weak
-   `backend/.env` JWT secret on the non-Docker path (MED), P-04 Swagger open in all envs (MED),
-   P-05 `PermissionsGuard` fail-open default (MED), P-06 exception-class disclosure (LOW),
-   P-07 lenient global rate limit (LOW), P-08 secrets in `.env` (INFO, expected/gitignored).
-   No CRITICALs, and none are exploitable in the current Docker setup, but they must be closed
-   before production. The **UAT Supabase password was pasted in chat — rotate it** before real use.
+4. **Security items — CLOSED 2026-07-02.** All 8 PENTEST findings are fixed and re-verified
+   ([docs/audit/PENTEST.md](audit/PENTEST.md) remediation section). Remaining owner actions:
+   **rotate the UAT Supabase password** (was pasted in chat) and set a strong `ADMIN_PASSWORD`
+   (or capture the generated one) on the next fresh seed.
 5. **Compliance is a hard gate you haven't started.** PDPL + Aramco in-Kingdom residency and
    **ZATCA Phase-2** are legal requirements, not nice-to-haves. UAT on a Sydney Supabase is
    fine *only* with synthetic data; do not put real client/employee data there.
@@ -190,8 +189,8 @@ full analytics/exports.
    exists but isn't gating pushes to the new GitHub repo. "Works on my machine" ≠ shippable.
 7. **Bus factor = 1.** One person + AI. No ops runbook, no second maintainer, no on-call.
    Fine for now; a liability once it's business-critical.
-8. **Dead lifecycle states.** `COSTING_REVIEW`/`READY_FOR_INVOICE` are selectable but do
-   nothing until S12 — hide them from the picker or ship S12 to avoid user confusion.
+8. **Dead lifecycle states — resolved 2026-07-02.** Hidden from the manual picker; backend
+   state machine untouched, ready for S12.
 9. **English-only UI for a bilingual business.** Arabic plates and ZATCA already force
    Arabic data; field staff will want an Arabic/mobile UI. Deferring is OK, but plan it.
 10. **Scope discipline.** Work has been reactive (redesigns, one-off fields, ad-hoc pricing).

@@ -37,3 +37,18 @@ _Appended as test development surfaces logic gaps._
 ### Verdict (RESOLVED)
 The cross-module finance chain is correct end-to-end and **F-006 is fixed**. All findings
 (F-001…F-006) are now FIXED or verified FALSE-POSITIVE — no OPEN items remain.
+
+## Handover logic sweep — 2026-07-02
+
+| ID | Sev | Status | Domain | Finding | Resolution |
+|----|-----|--------|--------|---------|------------|
+| F-007 | HIGH | ✅ FIXED | D7/D3 Numbering | JOB/EST/INV numbers were generated as `count(prefix) + 1`. Once any record is deleted, count < max, so the "next" number collides with an existing one **forever** (the retry loop recomputes the same value). Hit live on the dev DB: estimate→job conversion returned 500 after jobs were deleted. | Next number now derived from the **highest existing** number (`findFirst orderBy desc`) in `jobs.service.ts`, `invoices.service.ts`, `estimates.service.ts`; regression test in `jobs.service.spec.ts`. |
+| F-008 | MEDIUM | ✅ FIXED | D7 Finance | `PaymentsService.create` read `paidAmount` **outside** the transaction: two concurrent payments could both pass the outstanding-balance check and one update would be lost (INV-D7-7 "atomically" violated). | Read + validation moved inside the transaction with a compare-and-swap on `paidAmount` (`updateMany where paidAmount = read value`); concurrent conflict → 409 retry. Regression test added. |
+| F-009 | MEDIUM | ✅ FIXED | D7 Finance | `InvoicesService.issue` checked APPROVED status outside the transaction: a concurrent double-issue would consume the PO **twice** and double-advance the job (INV-X-3). | The APPROVED→SUBMITTED flip is now a compare-and-swap (`updateMany where status = APPROVED`) inside the transaction; second issuer gets 409. Regression test added. |
+| F-010 | LOW | ✅ FIXED | DX Seed | Re-running the seed on a dev DB whose demo rows were partially deleted crashed with P2025 (`findUniqueOrThrow` on deleted demo jobs), aborting the whole seed. | Demo sections now catch P2025 and skip with a warning; RBAC/admin seeding stays strict (`prisma/seed.ts`). |
+| F-011 | INFO | OPEN (design) | D6 Approvals | Timesheets and daily reports have **no self-approval block** — a user holding both `*.manage` and `*.approve` can approve their own submission. Expenses block this (INV-D8-3); D6 does not (documented delta INV-X-4). | **Owner decision needed:** either accept (role design keeps manage/approve separate) or extend the expenses-style `assertNotSelf` to timesheets/daily-reports. No code change made. |
+| F-012 | INFO | OPEN (design) | D7 Numbering | Deleting DRAFT invoices leaves **gaps in the invoice number sequence**. ZATCA expects sequential tax-invoice numbering; gaps in issued numbers are a compliance question for Phase-2 e-invoicing. | Note for the ZATCA Phase-2 work: consider assigning the final invoice number at **issue** time rather than at draft creation. No code change made. |
+
+### Verdict
+F-007…F-010 fixed with regression tests; F-011/F-012 are design decisions left open for the
+owner. All suites green after the fixes (187 unit / 31 e2e / 27 frontend).
