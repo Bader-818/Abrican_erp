@@ -17,7 +17,7 @@ import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/hooks/useAuth'
 import { changeJobStatus } from '@/api/jobs.api'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { ALLOWED_TRANSITIONS, JOB_STATUS_LABELS, PHASE_2_STATUSES } from '@/lib/job-status'
+import { JOB_STATUS_LABELS, PHASE_2_STATUSES, manualTransitionTargets } from '@/lib/job-status'
 import type { JobDetail, JobStatus } from '@/types'
 
 export interface ChangeStatusDialogProps {
@@ -36,7 +36,7 @@ export function ChangeStatusDialog({ open, onOpenChange, job }: ChangeStatusDial
   const [overrideReason, setOverrideReason] = useState('')
   const [overrideNeeded, setOverrideNeeded] = useState(false)
 
-  const allowedTargets = ALLOWED_TRANSITIONS[job.status]
+  const allowedTargets = manualTransitionTargets(job.status)
   // The assignment requirement only applies when activating a job that has none.
   const mayNeedOverride = toStatus === 'ACTIVE' && job._count.assignments === 0
 

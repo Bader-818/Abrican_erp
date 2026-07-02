@@ -44,4 +44,16 @@ export const PHASE_2_STATUSES: JobStatus[] = [
   'PAID',
 ]
 
+/**
+ * Hidden from the manual status picker until S12 (job costing) drives them:
+ * nothing acts on these states today, and invoicing fast-forwards a COMPLETED
+ * job straight to INVOICED, so offering them only confuses users.
+ */
+export const MANUAL_PICKER_HIDDEN: JobStatus[] = ['COSTING_REVIEW', 'READY_FOR_INVOICE']
+
+/** Transition targets a user may pick by hand (backend state machine minus S12-only states). */
+export function manualTransitionTargets(status: JobStatus): JobStatus[] {
+  return ALLOWED_TRANSITIONS[status].filter((target) => !MANUAL_PICKER_HIDDEN.includes(target))
+}
+
 export const ALL_JOB_STATUSES = Object.keys(JOB_STATUS_LABELS) as JobStatus[]
