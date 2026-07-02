@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { UPLOAD_LIMITS } from '../common/upload-limits.constant';
 import type { Response } from 'express';
 import { createReadStream } from 'fs';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -84,7 +85,7 @@ export class ExpensesController {
 
   @Post(':id/receipt')
   @RequirePermissions('expenses.manage')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS }))
   attachReceipt(
     @Param('id') id: string,
     @UploadedFile() file: UploadedFileLike | undefined,

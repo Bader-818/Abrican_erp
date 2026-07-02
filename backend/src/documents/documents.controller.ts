@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { UPLOAD_LIMITS } from '../common/upload-limits.constant';
 import type { Response } from 'express';
 import { createReadStream } from 'fs';
 import { AuditEntity } from '../common/decorators/audit-entity.decorator';
@@ -54,7 +55,7 @@ export class DocumentsController {
   @Post()
   @RequirePermissions('documents.manage')
   @AuditEntity({ entityType: 'Document', prismaModel: 'document' })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS }))
   create(
     @Body() dto: CreateDocumentDto,
     @UploadedFile() file: UploadedFileLike | undefined,
