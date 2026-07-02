@@ -12,6 +12,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AllowDuringPasswordChange } from '../common/decorators/allow-password-change.decorator';
+import { AuthOnly } from '../common/decorators/auth-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -27,6 +28,9 @@ function refreshIdFrom(req: Request): string | undefined {
   return (req.cookies?.['refresh_token'] as string | undefined)?.split('.')[0];
 }
 
+// Self-service routes: authentication is the only requirement (class-level
+// @AuthOnly). login/refresh are @Public; /me carries its own permission.
+@AuthOnly()
 @Controller('auth')
 export class AuthController {
   constructor(

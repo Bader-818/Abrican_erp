@@ -1,8 +1,11 @@
 import { Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { AuthOnly } from '../common/decorators/auth-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { NotificationsQueryDto } from './dto/notifications-query.dto';
 import { NotificationsService } from './notifications.service';
 
+// Every route is scoped to the authenticated user's own notifications.
+@AuthOnly()
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
