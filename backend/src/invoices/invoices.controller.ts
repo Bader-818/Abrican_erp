@@ -11,6 +11,7 @@ import {
   Res,
   StreamableFile,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -39,6 +40,7 @@ export class InvoicesController {
   }
 
   @Get(':id/pdf')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } }) // PDF rendering is costly (P-07)
   @RequirePermissions('invoices.view')
   async pdf(
     @Param('id') id: string,

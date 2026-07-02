@@ -23,8 +23,17 @@ cp .env.production.example .env.production
 openssl rand -hex 32   # JWT_ACCESS_SECRET, JWT_REFRESH_SECRET
 openssl rand -hex 24   # POSTGRES_PASSWORD (also update it inside DATABASE_URL)
 ```
-Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` (change the password after first login) and
-`CORS_ORIGINS` to your public URL.
+Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` and `CORS_ORIGINS` to your public URL.
+If `ADMIN_PASSWORD` is left empty the seed generates a random password and
+prints it once in the backend logs; either way the admin must set a new
+password at first login.
+
+Secrets handling (pentest P-08):
+- `.env.production` stays on the host only — never commit it, never paste
+  secrets into chats/tickets; rotate anything that leaks.
+- Every secret is per-environment: never reuse dev/UAT values in production.
+- Prefer a managed secrets store (platform env vars, Vault, cloud secret
+  manager) over an on-disk file when the platform offers one.
 
 ## 3. Build & start
 ```bash

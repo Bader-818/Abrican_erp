@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { UPLOAD_LIMITS } from '../common/upload-limits.constant';
 import type { Response } from 'express';
 import { createReadStream } from 'fs';
@@ -53,6 +54,7 @@ export class DocumentsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 15, ttl: 60_000 } }) // uploads buffer up to 10 MB (P-07)
   @RequirePermissions('documents.manage')
   @AuditEntity({ entityType: 'Document', prismaModel: 'document' })
   @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS }))
