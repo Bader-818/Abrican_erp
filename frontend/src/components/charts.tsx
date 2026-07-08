@@ -8,55 +8,61 @@ export type Tone =
   | 'danger'
   | 'neutral'
   | 'info'
-  | 'sky'
+  | 'blue'
   | 'teal'
   | 'indigo'
   | 'violet'
-  | 'orange'
+  | 'fuchsia'
   | 'lime'
   | 'cyan'
+  | 'yellow'
   | 'green'
   | 'rose'
   | 'muted'
 
+// Categorical chart palette: strongly separated hues (ERP-style), so every
+// status in one chart is unambiguous at a glance.
 const TONES: Record<Tone, { bar: string; stroke: string; text: string; dot: string }> = {
   success: { bar: 'bg-emerald-500', stroke: 'stroke-emerald-500', text: 'text-emerald-600', dot: 'bg-emerald-500' },
   warning: { bar: 'bg-amber-500', stroke: 'stroke-amber-500', text: 'text-amber-600', dot: 'bg-amber-500' },
   danger: { bar: 'bg-red-500', stroke: 'stroke-red-500', text: 'text-red-600', dot: 'bg-red-500' },
   neutral: { bar: 'bg-slate-400', stroke: 'stroke-slate-400', text: 'text-slate-500', dot: 'bg-slate-400' },
   info: { bar: 'bg-blue-500', stroke: 'stroke-blue-500', text: 'text-blue-600', dot: 'bg-blue-500' },
-  sky: { bar: 'bg-sky-500', stroke: 'stroke-sky-500', text: 'text-sky-600', dot: 'bg-sky-500' },
-  teal: { bar: 'bg-teal-500', stroke: 'stroke-teal-500', text: 'text-teal-600', dot: 'bg-teal-500' },
-  indigo: { bar: 'bg-indigo-500', stroke: 'stroke-indigo-500', text: 'text-indigo-600', dot: 'bg-indigo-500' },
+  blue: { bar: 'bg-blue-600', stroke: 'stroke-blue-600', text: 'text-blue-700', dot: 'bg-blue-600' },
+  teal: { bar: 'bg-teal-600', stroke: 'stroke-teal-600', text: 'text-teal-700', dot: 'bg-teal-600' },
+  indigo: { bar: 'bg-indigo-400', stroke: 'stroke-indigo-400', text: 'text-indigo-500', dot: 'bg-indigo-400' },
   violet: { bar: 'bg-violet-500', stroke: 'stroke-violet-500', text: 'text-violet-600', dot: 'bg-violet-500' },
-  orange: { bar: 'bg-orange-500', stroke: 'stroke-orange-500', text: 'text-orange-600', dot: 'bg-orange-500' },
+  fuchsia: { bar: 'bg-fuchsia-500', stroke: 'stroke-fuchsia-500', text: 'text-fuchsia-600', dot: 'bg-fuchsia-500' },
   lime: { bar: 'bg-lime-500', stroke: 'stroke-lime-500', text: 'text-lime-600', dot: 'bg-lime-500' },
   cyan: { bar: 'bg-cyan-500', stroke: 'stroke-cyan-500', text: 'text-cyan-600', dot: 'bg-cyan-500' },
-  green: { bar: 'bg-green-600', stroke: 'stroke-green-600', text: 'text-green-700', dot: 'bg-green-600' },
+  yellow: { bar: 'bg-yellow-400', stroke: 'stroke-yellow-400', text: 'text-yellow-600', dot: 'bg-yellow-400' },
+  green: { bar: 'bg-green-700', stroke: 'stroke-green-700', text: 'text-green-700', dot: 'bg-green-700' },
   rose: { bar: 'bg-rose-400', stroke: 'stroke-rose-400', text: 'text-rose-500', dot: 'bg-rose-400' },
   muted: { bar: 'bg-slate-600', stroke: 'stroke-slate-600', text: 'text-slate-600', dot: 'bg-slate-600' },
 }
 
 const STATUS_SEMANTIC: Record<string, Tone> = {
-  // --- Job lifecycle: each stage gets its own hue so the "Jobs by status"
-  // breakdown reads as a progression instead of three identical greens/ambers.
-  DRAFT: 'neutral',
-  PLANNED: 'sky',
-  APPROVED: 'info',
-  SCHEDULED: 'violet',
-  ACTIVE: 'success',
-  ON_HOLD: 'warning',
-  COMPLETED: 'teal',
-  COSTING_REVIEW: 'orange',
-  READY_FOR_INVOICE: 'lime',
-  INVOICED: 'indigo',
-  PARTIALLY_PAID: 'cyan',
-  PAID: 'green',
-  CLOSED: 'muted',
-  CANCELLED: 'rose',
+  // --- Job lifecycle: one definite hue per stage. Only "good/done" states
+  // stay in the green family, separated by lightness (active emerald →
+  // completed dark teal → paid deep green); everything else is a clearly
+  // different hue.
+  DRAFT: 'neutral', //            gray
+  PLANNED: 'cyan', //             cyan
+  APPROVED: 'blue', //            strong blue
+  SCHEDULED: 'violet', //         purple
+  ACTIVE: 'success', //           emerald (matches the green ACTIVE badge)
+  ON_HOLD: 'warning', //          amber
+  COMPLETED: 'teal', //           dark teal
+  COSTING_REVIEW: 'fuchsia', //   magenta
+  READY_FOR_INVOICE: 'lime', //   yellow-green
+  INVOICED: 'indigo', //          periwinkle
+  PARTIALLY_PAID: 'yellow', //    yellow
+  PAID: 'green', //               deep green
+  CLOSED: 'muted', //             dark gray
+  CANCELLED: 'rose', //           soft red
 
   // --- Finance documents (estimates / invoices / expenses)
-  SENT: 'sky',
+  SENT: 'cyan',
   CONVERTED: 'teal',
   PENDING_APPROVAL: 'warning',
   SUBMITTED: 'indigo',

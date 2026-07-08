@@ -5,7 +5,7 @@ describe('statusTone', () => {
   it('maps known statuses to the right semantic color', () => {
     expect(statusTone('ACTIVE').bar).toBe('bg-emerald-500')
     expect(statusTone('EXPIRED').bar).toBe('bg-red-500')
-    expect(statusTone('PLANNED').bar).toBe('bg-sky-500')
+    expect(statusTone('PLANNED').bar).toBe('bg-cyan-500')
     expect(statusTone('DRAFT').bar).toBe('bg-slate-400')
   })
 
