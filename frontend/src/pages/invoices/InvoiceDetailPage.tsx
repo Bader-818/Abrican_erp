@@ -70,7 +70,7 @@ export function InvoiceDetailPage() {
       </Link>
 
       <PageHeader
-        title={invoice.invoiceNumber}
+        title={invoice.invoiceNumber ?? 'Draft invoice'}
         description={invoice.client.name}
         actions={
           <div className="flex flex-wrap items-center gap-2">

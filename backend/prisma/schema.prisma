@@ -859,7 +859,9 @@ model EstimateLineItem {
 model Invoice {
   id                String         @id @default(uuid())
   uuid              String         @unique @default(uuid())  // ZATCA-ready identifier
-  invoiceNumber     String         @unique
+  // Official sequential number, assigned only at issue time (F-012) so deleted
+  // drafts can never leave gaps in the legal numbering (ZATCA). NULL until issued.
+  invoiceNumber     String?        @unique
   estimateId        String?
   estimate          Estimate?      @relation(fields: [estimateId], references: [id])
   clientId          String

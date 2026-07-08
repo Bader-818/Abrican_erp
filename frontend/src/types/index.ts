@@ -602,7 +602,8 @@ export interface InvoicePaymentLine {
 
 export interface InvoiceSummary {
   id: string
-  invoiceNumber: string
+  /** Official number assigned at issue time — null while the invoice is a draft (F-012). */
+  invoiceNumber: string | null
   status: InvoiceStatus
   currency: string
   invoiceDate: string

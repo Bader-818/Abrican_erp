@@ -35,6 +35,7 @@ describe('InvoicesService', () => {
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'inv-1', ...data })),
         findUnique: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+        delete: jest.fn().mockResolvedValue({}),
       },
       $transaction: jest.fn((cb: any) => cb(tx)),
       _tx: tx,
@@ -80,6 +81,16 @@ describe('InvoicesService', () => {
       expect(data.lineItems.create[0].sourceEstimateLineItemId).toBe('el-1');
     });
 
+    it('creates drafts without an official invoice number (F-012)', async () => {
+      prisma.estimate.findUnique.mockResolvedValue(approvedEstimate);
+      await service.createFromEstimate({ estimateId: 'est-1' }, makeUser());
+
+      const data = prisma.invoice.create.mock.calls[0][0].data;
+      expect(data.invoiceNumber).toBeUndefined();
+      // No number sequence is consulted for drafts.
+      expect(prisma.invoice.findFirst).not.toHaveBeenCalled();
+    });
+
     it('refuses estimates that are not APPROVED or CONVERTED', async () => {
       prisma.estimate.findUnique.mockResolvedValue({ ...approvedEstimate, status: EstimateStatus.DRAFT });
       await expect(
@@ -120,6 +131,19 @@ describe('InvoicesService', () => {
       );
     });
 
+    it('assigns the next sequential number inside the issue transaction (F-012)', async () => {
+      prisma.invoice.findUnique.mockResolvedValue(approvedInvoice);
+      const year = new Date().getFullYear();
+      prisma.invoice.findFirst.mockResolvedValue({ invoiceNumber: `INV-${year}-0007` });
+      await service.issue('inv-1', {}, makeUser());
+
+      expect(prisma._tx.invoice.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ invoiceNumber: `INV-${year}-0008` }),
+        }),
+      );
+    });
+
     it('blocks issuing without a client VAT number', async () => {
       prisma.invoice.findUnique.mockResolvedValue({ ...approvedInvoice, clientVatNumber: null });
       await expect(service.issue('inv-1', {}, makeUser())).rejects.toBeInstanceOf(BadRequestException);
@@ -149,6 +173,23 @@ describe('InvoicesService', () => {
       await expect(service.issue('inv-1', {}, makeUser())).rejects.toBeInstanceOf(ConflictException);
       expect(prisma._tx.purchaseOrder.update).not.toHaveBeenCalled();
       expect(jobStatus.applyFinanceStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    it('deletes a DRAFT invoice', async () => {
+      prisma.invoice.findUnique.mockResolvedValue({ status: InvoiceStatus.DRAFT, invoiceNumber: null });
+      await service.remove('inv-1', makeUser());
+      expect(prisma.invoice.delete).toHaveBeenCalledWith({ where: { id: 'inv-1' } });
+    });
+
+    it('refuses to hard-delete an issued invoice (F-012)', async () => {
+      prisma.invoice.findUnique.mockResolvedValue({
+        status: InvoiceStatus.SUBMITTED,
+        invoiceNumber: 'INV-2026-0001',
+      });
+      await expect(service.remove('inv-1', makeUser())).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.invoice.delete).not.toHaveBeenCalled();
     });
   });
 });

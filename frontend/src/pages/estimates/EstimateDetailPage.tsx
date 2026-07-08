@@ -52,7 +52,7 @@ export function EstimateDetailPage() {
   const invoiceMutation = useMutation({
     mutationFn: () => createInvoiceFromEstimate({ estimateId: id }),
     onSuccess: (invoice) => {
-      toast.success(`Invoice ${invoice.invoiceNumber} created`)
+      toast.success('Draft invoice created — its official number is assigned at issue')
       navigate(`/invoices/${invoice.id}`)
     },
     onError: (error) => toast.error(getApiErrorMessage(error, 'Failed to create invoice')),

@@ -47,7 +47,7 @@ export function InvoicesPage() {
       header: 'Number',
       cell: ({ row }) => (
         <Link to={`/invoices/${row.original.id}`} className="font-medium text-blue-700 hover:underline">
-          {row.original.invoiceNumber}
+          {row.original.invoiceNumber ?? <span className="italic text-slate-500">Draft</span>}
         </Link>
       ),
     },

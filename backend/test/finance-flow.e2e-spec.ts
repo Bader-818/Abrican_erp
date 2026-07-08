@@ -139,6 +139,42 @@ describe('Finance value chain (e2e)', () => {
     await http.post('/api/v1/payments').set(auth()).send({ invoiceId: inv.id, amount: TOTAL + 1 }).expect(400);
   });
 
+  // F-012: drafts carry no official number; the sequential number is assigned
+  // inside the issue transaction, so deleting drafts can never leave gaps in
+  // the legal (ZATCA) numbering — and issued invoices cannot be hard-deleted.
+  it('assigns invoice numbers only at issue; deleted drafts leave no gaps (F-012)', async () => {
+    const seq = (n: string) => Number(n.slice(-4));
+    async function issueNewInvoice() {
+      const est = await makeApprovedEstimate();
+      const draft = (
+        await http.post('/api/v1/invoices/from-estimate').set(auth()).send({ estimateId: est.id }).expect(201)
+      ).body;
+      expect(draft.invoiceNumber).toBeNull();
+      await http.post(`/api/v1/invoices/${draft.id}/submit-for-approval`).set(auth()).expect(201);
+      await http.post(`/api/v1/invoices/${draft.id}/approve`).set(auth()).expect(201);
+      return (await http.post(`/api/v1/invoices/${draft.id}/issue`).set(auth()).send({}).expect(201)).body;
+    }
+
+    // Anchor the sequence with an issued invoice.
+    const issuedA = await issueNewInvoice();
+    expect(issuedA.invoiceNumber).toMatch(/^INV-\d{4}-\d{4}$/);
+
+    // A draft created then deleted must not consume a number…
+    const est = await makeApprovedEstimate();
+    const scrapped = (
+      await http.post('/api/v1/invoices/from-estimate').set(auth()).send({ estimateId: est.id }).expect(201)
+    ).body;
+    expect(scrapped.invoiceNumber).toBeNull();
+    await http.delete(`/api/v1/invoices/${scrapped.id}`).set(auth()).expect(200);
+
+    // …so the next issued invoice is exactly +1: no gap.
+    const issuedB = await issueNewInvoice();
+    expect(seq(issuedB.invoiceNumber)).toBe(seq(issuedA.invoiceNumber) + 1);
+
+    // Issued invoices are legal documents: hard-delete is refused.
+    await http.delete(`/api/v1/invoices/${issuedB.id}`).set(auth()).expect(409);
+  });
+
   // S12: cost review drives COMPLETED → COSTING_REVIEW → READY_FOR_INVOICE, and
   // those finance states can no longer be set through the manual status endpoint.
   it('runs the job cost review and marks it ready for invoice (S12)', async () => {

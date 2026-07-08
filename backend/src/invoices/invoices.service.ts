@@ -166,10 +166,10 @@ export class InvoicesService {
       ? new Date(dto.dueDate)
       : this.addDays(invoiceDate, client.paymentTermsDays ?? DEFAULT_PAYMENT_TERMS_DAYS);
 
-    const created = await this.withNumber((invoiceNumber) =>
-      this.prisma.invoice.create({
+    // No invoiceNumber: drafts carry only their internal id; the official
+    // sequential number is assigned at issue time (F-012).
+    const created = await this.prisma.invoice.create({
         data: {
-          invoiceNumber,
           clientId: dto.clientId,
           contractId: dto.contractId,
           purchaseOrderId: dto.purchaseOrderId,
@@ -189,11 +189,9 @@ export class InvoicesService {
           lineItems: { create: lines },
         },
         select: INVOICE_DETAIL_SELECT,
-      }),
-    );
+      });
 
     await this.audit(user, AuditAction.CREATE, created.id, {
-      invoiceNumber: created.invoiceNumber,
       totalAmount: created.totalAmount,
     }, ipAddress);
     return created;
@@ -273,10 +271,9 @@ export class InvoicesService {
       ? new Date(dto.dueDate)
       : this.addDays(invoiceDate, client.paymentTermsDays ?? DEFAULT_PAYMENT_TERMS_DAYS);
 
-    const created = await this.withNumber((invoiceNumber) =>
-      this.prisma.invoice.create({
+    // Draft: official number comes at issue time (F-012).
+    const created = await this.prisma.invoice.create({
         data: {
-          invoiceNumber,
           estimateId: estimate.id,
           clientId: estimate.clientId,
           contractId: estimate.contractId,
@@ -295,11 +292,9 @@ export class InvoicesService {
           lineItems: { create: lines },
         },
         select: INVOICE_DETAIL_SELECT,
-      }),
-    );
+      });
 
     await this.audit(user, AuditAction.CREATE, created.id, {
-      invoiceNumber: created.invoiceNumber,
       fromEstimate: dto.estimateId,
       totalAmount: created.totalAmount,
     }, ipAddress);
@@ -369,7 +364,9 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
     if (existing.status !== InvoiceStatus.DRAFT) {
-      throw new ConflictException('Only DRAFT invoices can be deleted');
+      throw new ConflictException(
+        'Only DRAFT invoices can be deleted. An issued invoice is a legal document — reverse it with a credit note instead.',
+      );
     }
     await this.prisma.invoice.delete({ where: { id } });
     await this.audit(user, AuditAction.DELETE, id, { invoiceNumber: existing.invoiceNumber }, ipAddress);
@@ -406,7 +403,9 @@ export class InvoicesService {
       InvoiceStatus.APPROVED,
     ];
     if (!cancellable.includes(existing.status)) {
-      throw new ConflictException('Only an invoice that has not been issued can be cancelled');
+      throw new ConflictException(
+        'Only an invoice that has not been issued can be cancelled. An issued invoice must be reversed with a credit note.',
+      );
     }
     const updated = await this.prisma.invoice.update({
       where: { id },
@@ -465,45 +464,50 @@ export class InvoicesService {
     }
 
     const now = new Date();
-    const updated = await this.prisma.$transaction(async (tx) => {
-      // Compare-and-swap on APPROVED: a concurrent double-issue must not
-      // consume the PO twice or double-advance the job (INV-X-3).
-      const { count } = await tx.invoice.updateMany({
-        where: { id, status: InvoiceStatus.APPROVED },
-        data: { status: InvoiceStatus.SUBMITTED, submittedAt: now },
-      });
-      if (count === 0) {
-        throw new ConflictException('Invoice must be APPROVED to issue');
-      }
-      const result = await tx.invoice.findUniqueOrThrow({
-        where: { id },
-        select: INVOICE_DETAIL_SELECT,
-      });
-
-      if (invoice.purchaseOrderId) {
-        await tx.purchaseOrder.update({
-          where: { id: invoice.purchaseOrderId },
-          data: { consumedAmount: { increment: invoice.totalAmount } },
+    // The official sequential number is assigned here, inside the issue
+    // transaction (F-012): drafts never consume numbers, so deleting drafts
+    // can never create gaps in the legal numbering.
+    const updated = await this.withNumber((invoiceNumber) =>
+      this.prisma.$transaction(async (tx) => {
+        // Compare-and-swap on APPROVED: a concurrent double-issue must not
+        // consume the PO twice or double-advance the job (INV-X-3).
+        const { count } = await tx.invoice.updateMany({
+          where: { id, status: InvoiceStatus.APPROVED },
+          data: { status: InvoiceStatus.SUBMITTED, submittedAt: now, invoiceNumber },
         });
-      }
+        if (count === 0) {
+          throw new ConflictException('Invoice must be APPROVED to issue');
+        }
+        const result = await tx.invoice.findUniqueOrThrow({
+          where: { id },
+          select: INVOICE_DETAIL_SELECT,
+        });
 
-      if (invoice.jobId) {
-        await this.jobStatusService.applyFinanceStatus(
-          invoice.jobId,
-          JobStatus.INVOICED,
-          user.id,
-          `Invoice ${invoice.invoiceNumber} issued`,
-          tx,
-        );
-      }
+        if (invoice.purchaseOrderId) {
+          await tx.purchaseOrder.update({
+            where: { id: invoice.purchaseOrderId },
+            data: { consumedAmount: { increment: invoice.totalAmount } },
+          });
+        }
 
-      return result;
-    });
+        if (invoice.jobId) {
+          await this.jobStatusService.applyFinanceStatus(
+            invoice.jobId,
+            JobStatus.INVOICED,
+            user.id,
+            `Invoice ${invoiceNumber} issued`,
+            tx,
+          );
+        }
+
+        return result;
+      }),
+    );
 
     // Snapshot the PDF (best-effort; failure must not roll back the issue).
     try {
       const { buffer } = await this.renderPdf(id);
-      const stored = await this.storage.save(buffer, `${invoice.invoiceNumber}.pdf`, 'application/pdf', 'invoices');
+      const stored = await this.storage.save(buffer, `${updated.invoiceNumber}.pdf`, 'application/pdf', 'invoices');
       await this.prisma.invoice.update({ where: { id }, data: { pdfUrl: stored.url } });
     } catch {
       // PDF can be regenerated on demand from GET :id/pdf.
@@ -513,9 +517,9 @@ export class InvoicesService {
       user,
       poOverride ? AuditAction.OVERRIDE : AuditAction.STATUS_CHANGE,
       id,
-      { status: InvoiceStatus.SUBMITTED },
+      { status: InvoiceStatus.SUBMITTED, invoiceNumber: updated.invoiceNumber },
       ipAddress,
-      poOverride ? `Issued over PO balance. Override reason: ${dto.overrideReason}` : `Invoice ${invoice.invoiceNumber} issued`,
+      poOverride ? `Issued over PO balance. Override reason: ${dto.overrideReason}` : `Invoice ${updated.invoiceNumber} issued`,
     );
 
     // Best-effort PO-consumption alerts (never blocks the issue).
@@ -567,7 +571,7 @@ export class InvoicesService {
     const buffer = await this.pdfService.renderFinancialDocument({
       docTypeEn: 'TAX INVOICE',
       docTypeAr: 'فاتورة ضريبية',
-      number: invoice.invoiceNumber,
+      number: invoice.invoiceNumber ?? 'DRAFT',
       issueDate: invoice.invoiceDate,
       issueTime: new Date(invoice.createdAt).toLocaleTimeString('en-US'),
       contractNo: invoice.contract?.contractNumber ?? null,
@@ -600,7 +604,7 @@ export class InvoicesService {
       showBank: true,
       notes: invoice.notes,
     });
-    return { buffer, filename: `${invoice.invoiceNumber}.pdf` };
+    return { buffer, filename: `${invoice.invoiceNumber ?? 'invoice-draft'}.pdf` };
   }
 
   // --- Helpers ----------------------------------------------------------------
@@ -729,8 +733,9 @@ export class InvoicesService {
 
   /**
    * Sequential per-year invoice number (INV-2026-0001), derived from the
-   * highest existing number — not the row count, which collides forever once
-   * an invoice is deleted.
+   * highest existing number. Only issued invoices carry a number (F-012), and
+   * issued invoices cannot be deleted, so the sequence is gap-free. The unique
+   * constraint + retry closes the concurrent-issue race.
    */
   private async withNumber<T>(run: (num: string) => Promise<T>): Promise<T> {
     for (let attempt = 1; ; attempt++) {
