@@ -69,7 +69,8 @@ export function StatusBadge({ status, className, ...props }: StatusBadgeProps) {
   const label = status.replace(/_/g, ' ')
 
   return (
-    <Badge variant={variant} className={cn('capitalize', className)} {...props}>
+    <Badge variant={variant} className={cn('gap-1.5 capitalize', className)} {...props}>
+      <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
       {label.toLowerCase()}
     </Badge>
   )

@@ -15,10 +15,12 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
         <main className="flex-1 p-4 lg:p-6">
-          <Outlet />
+          <div className="mx-auto w-full max-w-[1440px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

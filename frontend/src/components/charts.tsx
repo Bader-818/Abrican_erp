@@ -2,7 +2,22 @@ import { cn } from '@/lib/utils'
 
 // --- status → semantic tone -------------------------------------------------
 
-export type Tone = 'success' | 'warning' | 'danger' | 'neutral' | 'info'
+export type Tone =
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'neutral'
+  | 'info'
+  | 'sky'
+  | 'teal'
+  | 'indigo'
+  | 'violet'
+  | 'orange'
+  | 'lime'
+  | 'cyan'
+  | 'green'
+  | 'rose'
+  | 'muted'
 
 const TONES: Record<Tone, { bar: string; stroke: string; text: string; dot: string }> = {
   success: { bar: 'bg-emerald-500', stroke: 'stroke-emerald-500', text: 'text-emerald-600', dot: 'bg-emerald-500' },
@@ -10,42 +25,61 @@ const TONES: Record<Tone, { bar: string; stroke: string; text: string; dot: stri
   danger: { bar: 'bg-red-500', stroke: 'stroke-red-500', text: 'text-red-600', dot: 'bg-red-500' },
   neutral: { bar: 'bg-slate-400', stroke: 'stroke-slate-400', text: 'text-slate-500', dot: 'bg-slate-400' },
   info: { bar: 'bg-blue-500', stroke: 'stroke-blue-500', text: 'text-blue-600', dot: 'bg-blue-500' },
+  sky: { bar: 'bg-sky-500', stroke: 'stroke-sky-500', text: 'text-sky-600', dot: 'bg-sky-500' },
+  teal: { bar: 'bg-teal-500', stroke: 'stroke-teal-500', text: 'text-teal-600', dot: 'bg-teal-500' },
+  indigo: { bar: 'bg-indigo-500', stroke: 'stroke-indigo-500', text: 'text-indigo-600', dot: 'bg-indigo-500' },
+  violet: { bar: 'bg-violet-500', stroke: 'stroke-violet-500', text: 'text-violet-600', dot: 'bg-violet-500' },
+  orange: { bar: 'bg-orange-500', stroke: 'stroke-orange-500', text: 'text-orange-600', dot: 'bg-orange-500' },
+  lime: { bar: 'bg-lime-500', stroke: 'stroke-lime-500', text: 'text-lime-600', dot: 'bg-lime-500' },
+  cyan: { bar: 'bg-cyan-500', stroke: 'stroke-cyan-500', text: 'text-cyan-600', dot: 'bg-cyan-500' },
+  green: { bar: 'bg-green-600', stroke: 'stroke-green-600', text: 'text-green-700', dot: 'bg-green-600' },
+  rose: { bar: 'bg-rose-400', stroke: 'stroke-rose-400', text: 'text-rose-500', dot: 'bg-rose-400' },
+  muted: { bar: 'bg-slate-600', stroke: 'stroke-slate-600', text: 'text-slate-600', dot: 'bg-slate-600' },
 }
 
 const STATUS_SEMANTIC: Record<string, Tone> = {
-  // green
+  // --- Job lifecycle: each stage gets its own hue so the "Jobs by status"
+  // breakdown reads as a progression instead of three identical greens/ambers.
+  DRAFT: 'neutral',
+  PLANNED: 'sky',
+  APPROVED: 'info',
+  SCHEDULED: 'violet',
   ACTIVE: 'success',
-  AVAILABLE: 'success',
-  COMPLETED: 'success',
-  APPROVED: 'success',
-  VALID: 'success',
-  PAID: 'success',
-  // amber
-  PLANNED: 'warning',
-  SCHEDULED: 'warning',
   ON_HOLD: 'warning',
+  COMPLETED: 'teal',
+  COSTING_REVIEW: 'orange',
+  READY_FOR_INVOICE: 'lime',
+  INVOICED: 'indigo',
+  PARTIALLY_PAID: 'cyan',
+  PAID: 'green',
+  CLOSED: 'muted',
+  CANCELLED: 'rose',
+
+  // --- Finance documents (estimates / invoices / expenses)
+  SENT: 'sky',
+  CONVERTED: 'teal',
+  PENDING_APPROVAL: 'warning',
+  SUBMITTED: 'indigo',
+  POSTED: 'green',
+  REJECTED: 'danger',
+  OVERDUE: 'danger',
+
+  // --- Resources & compliance (semantic colors)
+  AVAILABLE: 'success',
+  VALID: 'success',
   ASSIGNED: 'warning',
   IN_USE: 'warning',
   ON_LEAVE: 'warning',
   SICK: 'warning',
   CONSUMED: 'warning',
-  PARTIALLY_PAID: 'warning',
-  COSTING_REVIEW: 'warning',
-  READY_FOR_INVOICE: 'warning',
-  INVOICED: 'warning',
   EXPIRING_30: 'warning',
   EXPIRING_60: 'warning',
   EXPIRING_90: 'warning',
-  // red
   EXPIRED: 'danger',
   TERMINATED: 'danger',
   MAINTENANCE: 'danger',
   OUT_OF_SERVICE: 'danger',
-  // neutral
-  DRAFT: 'neutral',
-  CLOSED: 'neutral',
   INACTIVE: 'neutral',
-  CANCELLED: 'neutral',
   NO_EXPIRY: 'neutral',
 }
 
@@ -189,8 +223,16 @@ export function Donut({
               return el
             })}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold text-slate-900">{centerValue}</span>
+        <div className="absolute inset-3 flex flex-col items-center justify-center text-center">
+          <span
+            className={cn(
+              'font-semibold tracking-tight text-slate-900',
+              // Long values (e.g. currency amounts) must stay inside the ring.
+              String(centerValue).length > 8 ? 'text-sm leading-tight' : 'text-2xl',
+            )}
+          >
+            {centerValue}
+          </span>
           <span className="text-xs text-slate-400">{centerLabel}</span>
         </div>
       </div>

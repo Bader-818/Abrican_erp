@@ -61,14 +61,14 @@ function KpiCard({
 }) {
   const t = KPI_TONES[tone]
   const inner = (
-    <div className="h-full rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="h-full rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-card">
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium text-slate-500">{label}</p>
-        <span className={cn('flex h-9 w-9 items-center justify-center rounded-lg', t.iconBg)}>
+        <span className={cn('flex h-10 w-10 items-center justify-center rounded-lg', t.iconBg)}>
           <Icon className={cn('h-5 w-5', t.icon)} />
         </span>
       </div>
-      <p className={cn('mt-3 text-3xl font-semibold tabular-nums', t.value)}>{value}</p>
+      <p className={cn('mt-2 text-3xl font-semibold tabular-nums tracking-tight', t.value)}>{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-400">{hint}</p> : null}
     </div>
   )
@@ -93,9 +93,9 @@ function Panel({
   className?: string
 }) {
   return (
-    <div className={cn('rounded-xl border border-slate-200 bg-white p-5 shadow-sm', className)}>
+    <div className={cn('rounded-xl border border-slate-200 bg-white p-5 shadow-xs', className)}>
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
         {action}
       </div>
       {children}

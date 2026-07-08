@@ -5,12 +5,33 @@ describe('statusTone', () => {
   it('maps known statuses to the right semantic color', () => {
     expect(statusTone('ACTIVE').bar).toBe('bg-emerald-500')
     expect(statusTone('EXPIRED').bar).toBe('bg-red-500')
-    expect(statusTone('PLANNED').bar).toBe('bg-amber-500')
+    expect(statusTone('PLANNED').bar).toBe('bg-sky-500')
     expect(statusTone('DRAFT').bar).toBe('bg-slate-400')
   })
 
   it('falls back to info (blue) for unknown statuses', () => {
     expect(statusTone('SOMETHING_NEW').bar).toBe('bg-blue-500')
+  })
+
+  it('gives every job lifecycle status a distinct color', () => {
+    const jobStatuses = [
+      'DRAFT',
+      'PLANNED',
+      'APPROVED',
+      'SCHEDULED',
+      'ACTIVE',
+      'ON_HOLD',
+      'COMPLETED',
+      'COSTING_REVIEW',
+      'READY_FOR_INVOICE',
+      'INVOICED',
+      'PARTIALLY_PAID',
+      'PAID',
+      'CLOSED',
+      'CANCELLED',
+    ]
+    const bars = jobStatuses.map((s) => statusTone(s).bar)
+    expect(new Set(bars).size).toBe(jobStatuses.length)
   })
 })
 

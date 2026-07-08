@@ -164,7 +164,20 @@
       "Bash(echo \"clean:$?\")",
       "Bash(nc -z localhost 5434)",
       "Bash(python3 -)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(ls /Applications | grep -i \"chrome\\\\|chromium\\\\|edge\"; ls \"$HOME/Library/Caches/ms-playwright\" 2>/dev/null | head -3)",
+      "Read(//Applications/**)",
+      "Read(//Users/baderalhajri/Library/Caches/ms-playwright/**)",
+      "Read(//Users/baderalhajri/Library/Caches/ms-playwright/chromium-1217/**)",
+      "Bash(mkdir -p /private/tmp/claude-501/-Users-baderalhajri-Desktop-Abrican-erp-system/f22e168a-5811-46a1-a51c-27ee4f84e7ba/scratchpad/uicheck)",
+      "Bash(npm init *)",
+      "Bash(npm i *)",
+      "Bash(find \"$HOME/Library/Caches/ms-playwright/chromium-1217/chrome-mac-arm64\" -type f -path \"*MacOS*\" | head -3)",
+      "Read(//Users/baderalhajri/Library/Caches/ms-playwright/chromium-1217/chrome-mac-arm64/**)",
+      "Bash(mkdir -p shots)",
+      "Bash(node shoot.mjs)"
     ],
     "additionalDirectories": [
       "/tmp",

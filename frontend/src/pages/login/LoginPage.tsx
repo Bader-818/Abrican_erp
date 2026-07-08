@@ -57,11 +57,19 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-4">
+      {/* Soft brand wash behind the card. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-brand-100/60 to-transparent"
+      />
+      <div className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-card">
         <div className="mb-6 text-center">
           <Logo className="mx-auto h-16" />
-          <p className="mt-3 text-sm text-slate-500">
+          <h1 className="mt-4 text-lg font-semibold tracking-tight text-slate-900">
+            {mfaStep ? 'Two-factor verification' : 'Welcome back'}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
             {mfaStep ? 'Enter your authenticator code' : 'Sign in to your account'}
           </p>
         </div>

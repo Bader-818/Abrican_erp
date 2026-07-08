@@ -22,13 +22,13 @@ export function DataTable<TData>({
   })
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+        <thead className="border-b border-slate-200 bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <th key={header.id} className="px-4 py-3">
+                <th key={header.id} className="whitespace-nowrap px-4 py-2.5">
                   {header.isPlaceholder
                     ? null
                     : flexRender(header.column.columnDef.header, header.getContext())}
@@ -52,7 +52,7 @@ export function DataTable<TData>({
             </tr>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-slate-50">
+              <tr key={row.id} className="transition-colors duration-100 hover:bg-brand-50/40">
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-4 py-3 align-middle text-slate-700">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

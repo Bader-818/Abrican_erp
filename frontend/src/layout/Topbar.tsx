@@ -42,7 +42,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur lg:px-6">
       <div className="lg:hidden">
         <Logo className="h-9" />
       </div>

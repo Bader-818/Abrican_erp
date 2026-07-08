@@ -187,14 +187,14 @@ function Kpi({
 }) {
   const t = KPI_TONES[tone]
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition-all duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-card">
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium text-slate-500">{label}</p>
-        <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${t.bg}`}>
+        <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${t.bg}`}>
           <Icon className={`h-5 w-5 ${t.icon}`} />
         </span>
       </div>
-      <p className={`mt-3 text-2xl font-semibold tabular-nums ${t.value}`}>{value}</p>
+      <p className={`mt-2 text-2xl font-semibold tabular-nums tracking-tight ${t.value}`}>{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-400">{hint}</p> : null}
     </div>
   )
@@ -202,8 +202,8 @@ function Kpi({
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-sm font-semibold text-slate-700">{title}</h3>
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+      <h3 className="mb-4 text-sm font-semibold text-slate-800">{title}</h3>
       {children}
     </div>
   )
@@ -211,9 +211,9 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function MiniStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
       <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-slate-900">{value}</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-slate-900">{value}</p>
       {hint ? <p className="mt-0.5 text-xs text-slate-400">{hint}</p> : null}
     </div>
   )
