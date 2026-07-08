@@ -1,0 +1,26 @@
+# Abrican ERP — internal TLS + subnet allowlist.
+#
+# Serves HTTPS with Caddy's built-in internal CA (no public certificate needed)
+# and rejects any request that does not originate from the office LAN or the
+# WireGuard VPN subnet. Edit the hostname and the two CIDRs below to match your
+# network, then reload:  docker compose ... restart caddy
+#
+# Clients must trust Caddy's internal root CA — see SELF-HOSTING.md §7.
+
+# --- CHANGE ME: your internal hostname (must resolve to the server's LAN IP) ---
+https://erp.abrican.local {
+    # Internal CA — no Let's Encrypt / no public DNS required.
+    tls internal
+
+    # --- WHITELIST: only these source networks may reach the app -------------
+    # 192.168.10.0/24 = office LAN   (change to your subnet)
+    # 10.8.0.0/24     = WireGuard VPN (matches wg0 Address below)
+    @blocked not remote_ip 192.168.10.0/24 10.8.0.0/24
+    respond @blocked "Access denied" 403
+
+    encode gzip
+
+    # Same-origin: proxy everything to the frontend nginx, which serves the SPA
+    # and proxies /api to the backend.
+    reverse_proxy frontend:80
+}

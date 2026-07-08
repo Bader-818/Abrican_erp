@@ -1,0 +1,52 @@
+# Self-hosted TLS + PDF layer, applied ON TOP OF docker-compose.prod.yml.
+#
+# It fixes two gaps in the base prod file and adds access control:
+#   1. Adds the Gotenberg PDF sidecar (the base prod file omits it, so quotation
+#      and invoice PDFs would otherwise fail).
+#   2. Mounts the company logo into the backend so PDFs are branded.
+#   3. Adds a Caddy reverse proxy that terminates internal TLS and allows only
+#      the office LAN + WireGuard VPN subnets — the frontend no longer publishes
+#      a host port, so Caddy is the ONLY reachable entry point.
+#
+# Run (from the repo root):
+#   docker compose -f docker-compose.prod.yml -f deploy/docker-compose.tls.yml \
+#     --env-file .env.production up -d --build
+#
+# Requires Docker Compose v2.24.4+ (for the `!reset` tag).
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    # Internal only — the backend calls it at http://gotenberg:3000.
+    expose:
+      - '3000'
+
+  backend:
+    environment:
+      GOTENBERG_URL: http://gotenberg:3000
+      COMPANY_LOGO_PATH: /app/logo/abrican-logo.png
+    volumes:
+      - ./backend/src/pdf/assets/abrican-logo.png:/app/logo/abrican-logo.png:ro
+
+  frontend:
+    # Stop publishing a host port; Caddy reaches it on the internal network only.
+    ports: !reset []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    # Bind to the server's LAN IP only (set SERVER_LAN_IP in .env.production), so
+    # the app is offered on the LAN/VPN and never on other interfaces.
+    ports:
+      - '${SERVER_LAN_IP}:443:443'
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
