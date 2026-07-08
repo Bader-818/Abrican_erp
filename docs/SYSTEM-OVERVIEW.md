@@ -1,14 +1,14 @@
 # Abrican ERP — System Overview
 
-_Last updated: 2026-07-02. A **factual reference** of what the system actually contains today,
+_Last updated: 2026-07-05. A **factual reference** of what the system actually contains today,
 grounded in the code (not aspirations). Every "exists" claim below traces to a real file,
 route, model, or enum. For status/roadmap and what's **not** built, see
 [PROJECT-STATUS.md](PROJECT-STATUS.md). Companion docs: [ARCHITECTURE.md](../ARCHITECTURE.md),
 [PHASE2.md](../PHASE2.md), [docs/audit/](audit/)._
 
-> Numbers in this document were verified by direct count on 2026-07-02:
-> **48 permissions · 10 roles · 29 Prisma models · 27 enums · 8 migrations ·
-> 177 backend unit tests (29 files) · 24 e2e test blocks (3 files) · 25 frontend tests (4 files)**.
+> Numbers verified 2026-07-05 (after Phase-2 completion — S12/S13/finance alerts):
+> **51 permissions · 10 roles · 29 Prisma models · 27 enums · 9 migrations ·
+> 204 backend unit tests (32 files) · 33 e2e tests (3 files) · 27 frontend tests (4 files)**.
 
 ---
 
@@ -16,7 +16,7 @@ route, model, or enum. For status/roadmap and what's **not** built, see
 Abrican ERP is an **operations-to-finance ERP** for a Saudi Aramco contractor (oil & gas /
 industrial services). It is a **modular monolith**:
 
-- **Backend:** NestJS 11 + Prisma 5 + PostgreSQL 16. One deployable process, ~23 feature
+- **Backend:** NestJS 11 + Prisma 5 + PostgreSQL 16. One deployable process, ~25 feature
   modules registered in [app.module.ts](../backend/src/app.module.ts).
 - **Frontend:** React 19 + Vite + TypeScript, TanStack Query + TanStack Table, Tailwind +
   Radix/shadcn components.
@@ -45,6 +45,7 @@ All routes are under the global prefix `/api/v1`. Access is gated by
 | **contracts** | `/contracts` | Contracts + **rate-cards** sub-resource (pricing) |
 | **purchase-orders** | `/purchase-orders` | PO tracking against contracts (consumed vs. value) |
 | **jobs** | `/jobs` | Job CRUD + `POST :id/status` (state machine) |
+| **costing** | `/jobs/:jobId/costing` | Job cost/profit breakdown + `review` / `ready-for-invoice` (S12) |
 | **employees** | `/employees` | Employee records + cost rate |
 | **crews** | `/crews` | Crews + members sub-resource |
 | **vehicles** | `/vehicles` | Fleet (plate EN/AR, class, expiries) |
@@ -57,8 +58,9 @@ All routes are under the global prefix `/api/v1`. Access is gated by
 | **daily-reports** | `/daily-reports` | Field daily reports + submit/approve/reject |
 | **timesheets** | `/timesheets` | Hours (regular/OT/standby/travel) + approval |
 | **expenses** | `/expenses` | Expense claims, receipts, approve/post, **reimbursement** |
-| **dashboard** | `/dashboard` | `operations` + `assets` KPI aggregations |
+| **dashboard** | `/dashboard` | `operations` + `assets` + `finance` KPI aggregations (S13) |
 | **notifications** | `/notifications` | User notifications, unread-count, mark-read |
+| **finance-alerts** | _(no routes)_ | Event + daily-cron finance alerts via notifications (S13) |
 
 Infrastructure modules (not user-facing features): **prisma** (ORM provider), **storage**
 (`IStorageService`), **pdf** (Gotenberg client).
@@ -165,17 +167,18 @@ equipment) and `Document` (employee/vehicle/equipment/contract/client).
 AssignmentStatus, ClientType, ContractStatus, PurchaseOrderStatus, AvailabilityStatus,
 VehicleClass LIGHT/HEAVY, OwnershipType, …) and the finance set (EstimateStatus,
 InvoiceStatus, LineKind, BillingUnit, PaymentMethod, ApprovalStatus, ExpenseCategory,
-ReimbursementStatus). **AuditAction has 15 values**; **NotificationType has 8**
-(JOB_ASSIGNED, RESOURCE_CONFLICT, DOCUMENT_EXPIRING, DOCUMENT_EXPIRED, CONTRACT_NEAR_EXPIRY,
-PO_NEAR_EXPIRY, JOB_STATUS_CHANGED, GENERAL — **no finance-alert types**).
+ReimbursementStatus). **AuditAction has 15 values**; **NotificationType has 15** — the 8
+operational (JOB_ASSIGNED, RESOURCE_CONFLICT, DOCUMENT_EXPIRING/EXPIRED, CONTRACT_NEAR_EXPIRY,
+PO_NEAR_EXPIRY, JOB_STATUS_CHANGED, GENERAL) plus 7 finance alerts (INVOICE_OVERDUE,
+INVOICE_EXCEEDS_PO, PO_NEARLY_CONSUMED, COST_OVER_BUDGET, MARGIN_BELOW_TARGET, JOB_NOT_INVOICED,
+PAYMENT_DELAYED).
 
-> **Fields that exist but are NOT wired to any logic yet** (pre-wired for S12 costing so it
-> can be added without re-migrating): `Job.actualCost`, `Job.grossProfit`,
-> `Job.grossMarginPct`, `Job.costReviewedAt`, `Job.costReviewedById`;
-> `Estimate.estimatedCost`, `Estimate.estimatedMarginPct`; `EstimateLineItem.estimatedUnitCost`,
-> `EstimateLineItem.lineCost`. Also placeholders: `Invoice.uuid` (ZATCA-ready) and
-> `Invoice.zatcaStatus` (Phase-2 e-invoicing, not driven). Schema note on `Expense`:
-> "no Department model yet; departmentId omitted."
+> **The S12 profit fields are now populated** by the `costing` module: `Job.actualCost`,
+> `grossProfit`, `grossMarginPct`, `costReviewedAt`, `costReviewedById` (on cost review) and
+> `Estimate.estimatedCost/estimatedMarginPct` + `EstimateLineItem.estimatedUnitCost/lineCost`
+> (from optional per-line cost input). Still placeholders: `Invoice.uuid` (ZATCA-ready) and
+> `Invoice.zatcaStatus` (Phase-2 e-invoicing, not driven); and `PAYMENT_DELAYED` is defined but
+> not yet raised by any sweep. Schema note on `Expense`: "no Department model yet; departmentId omitted."
 
 ---
 
@@ -209,8 +212,10 @@ resource bookings** (`ASSIGNMENT_CASCADE`) so an ACTIVE job can't show PLANNED b
 transition writes `JobStatusHistory` + an audit log. Full review:
 [docs/audit/JOB-LIFECYCLE.md](audit/JOB-LIFECYCLE.md).
 
-`COSTING_REVIEW` and `READY_FOR_INVOICE` are valid states but **nothing auto-drives them**
-(S12 is not built) — they are manual-only today.
+`COSTING_REVIEW` and `READY_FOR_INVOICE` are now **driven by the `costing` module** (S12):
+`POST /jobs/:id/costing/review` advances COMPLETED → COSTING_REVIEW and `…/ready-for-invoice`
+advances to READY_FOR_INVOICE. They (and INVOICED/PARTIALLY_PAID/PAID) are on the
+`MANUAL_STATUS_CHANGE_BLOCKLIST`, so `changeStatus` rejects setting them by hand.
 
 ---
 
@@ -230,16 +235,19 @@ transition writes `JobStatusHistory` + an audit log. Full review:
 ---
 
 ## 9. Quality & tests (verified counts)
-- **Backend unit:** 177 tests across 29 `*.spec.ts` (finance line-math, job-status machine,
+- **Backend unit:** 204 tests across 32 `*.spec.ts` (finance line-math, **costing math**,
+  **finance-alert thresholds**, **finance-dashboard aggregation**, job-status machine,
   auth/lockout/reuse, conflict detection, utilization, pagination, plus per-service specs).
-- **E2E:** 24 test blocks across 3 files — `app.e2e-spec.ts` (15), `rbac.e2e-spec.ts` (5),
-  `finance-flow.e2e-spec.ts` (4); run against a real Postgres.
-- **Frontend:** 25 tests across 4 `*.test.ts` (formatters, api-error, job-status mirror,
+- **E2E:** 33 tests across 3 files — `app.e2e-spec.ts`, `rbac.e2e-spec.ts`,
+  `finance-flow.e2e-spec.ts` (now covers the cost-review → ready-for-invoice path + finance
+  dashboard); run against a real Postgres.
+- **Frontend:** 27 tests across 4 `*.test.ts` (formatters, api-error, job-status mirror,
   chart utilities). No component/browser tests.
-- **Migrations (8):** `20260611124447_init`, `..._add_polymorphic_check_constraints`,
+- **Migrations (9):** `20260611124447_init`, `..._add_polymorphic_check_constraints`,
   `20260615114913_auth_hardening`, `20260617083930_phase2_finance`,
   `20260618084831_account_security`, `20260618093300_field_reports_timesheets`,
-  `20260618114050_expenses`, `20260622102841_vehicle_fleet_fields`.
+  `20260618114050_expenses`, `20260622102841_vehicle_fleet_fields`,
+  `20260705113208_finance_alert_notifications`.
 - **Pentest:** [docs/audit/PENTEST.md](audit/PENTEST.md) — no CRITICALs; 8 findings
   (P-01…P-08) currently open (config/hardening; see PROJECT-STATUS §5).
 

@@ -148,10 +148,24 @@
       "Bash(curl -s -o /dev/null -w 'backend health after restart: %{http_code}\\\\n' http://localhost:3000/api/v1/health)",
       "Bash(curl -s -o /dev/null -w 'health: %{http_code}\\\\n' http://localhost:3000/api/v1/health)",
       "Bash(git commit -q -m 'docs: record handover hardening pass — pentest closed, sweep findings *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(awk '/^model \\(Job|Timesheet|Expense|CrewMember|Crew|Invoice|Employee|Vehicle|Equipment|JobAssignment\\) /{f=1} f{print} /^}/{if\\(f\\){print \"\"; f=0}}' prisma/schema.prisma)",
+      "Bash(npx vitest *)",
+      "Bash(fdesetup status *)",
+      "Bash(bash -n deploy/backup.sh)",
+      "Bash(chmod +x deploy/backup.sh)",
+      "mcp__claude_ai_Canva__request-outline-review",
+      "mcp__claude_ai_Canva__generate-design-structured",
+      "mcp__claude_ai_Canva__create-design-from-candidate",
+      "Bash(git status *)",
+      "Bash(git commit -m 'feat\\(S12/S13\\): job costing & profitability, finance dashboard, critical finance alerts *)",
+      "Bash(git commit -m 'feat\\(deploy\\): self-hosting pack — LAN/VPN-only TLS stack, backups, runbook *)",
+      "Bash(git commit -m 'docs: Phase-2 completion status, architecture/security diagrams, refreshed audit report *)",
+      "Bash(echo \"clean:$?\")"
     ],
     "additionalDirectories": [
-      "/tmp"
+      "/tmp",
+      "/private/tmp"
     ]
   }
 }

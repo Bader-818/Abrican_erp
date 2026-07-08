@@ -9,7 +9,8 @@ see the companion [SYSTEM-OVERVIEW.md](SYSTEM-OVERVIEW.md). Other companions:
 ---
 
 ## 1. Snapshot
-- **Phase 1 (operational core): complete.** **Phase 2 (finance): S7–S11 built & live; S12–S13 not built.**
+- **Phase 1 (operational core): complete.** **Phase 2 (finance): S7–S13 built & live**
+  (S12 job costing, S13 finance dashboard, and critical finance alerts landed 2026-07-05).
 - Codebase audited (consistency + invariants + tests) and pentested — **all 8 pentest
   findings FIXED 2026-07-02** (handover hardening pass, see [audit/PENTEST.md](audit/PENTEST.md)).
 - Logic sweep 2026-07-02: 4 bugs fixed (F-007…F-010, incl. a HIGH document-numbering bug and
@@ -17,9 +18,9 @@ see the companion [SYSTEM-OVERVIEW.md](SYSTEM-OVERVIEW.md). Other companions:
   [audit/FINDINGS.md](audit/FINDINGS.md).
 - Source is on **GitHub** (private, `main`). A **UAT database is live on Supabase** (synthetic data).
 - **Not yet deployed** to any hosted environment; no real users have tested it yet.
-- Verified size: **48 permissions · 10 roles · 29 Prisma models · 27 enums · 8 migrations**.
-- Tests (verified 2026-07-02, post-hardening): **187 backend unit** (30 files) · **31 e2e**
-  (3 files) · **27 frontend** (4 files) — all green; `npm audit --omit=dev` clean both apps.
+- Verified size: **51 permissions · 10 roles · 29 Prisma models · 27 enums · 9 migrations**.
+- Tests (runner-authoritative, 2026-07-05): **204 backend unit** (32 files) · **33 e2e**
+  (3 files) · **27 frontend** (4 files) — all green; consistency audit **0 findings**.
 
 ---
 
@@ -32,13 +33,27 @@ purchase orders; jobs + **status state machine**; employees / crews / vehicles /
 assignments & scheduling (conflict detection, override, utilization); documents + expiry;
 audit log; notifications; operations & assets dashboards. Docker dev stack.
 
-### Phase 2 — finance (S7–S11)
+### Phase 2 — finance (S7–S13)
 - **S7 Estimates/quotations** — priced from contract rate cards, bilingual PDF, → convert to job.
 - **S8 Invoicing** — from estimate actuals, 15% VAT, PO-balance check, ZATCA-Phase-1 QR PDF, sets job `INVOICED`.
 - **S9 Payments & receivables** — full/partial, AR aging, auto invoice/job status.
 - **S10 Daily reports & timesheets** — DRAFT→SUBMITTED→APPROVED/REJECTED approval workflow.
 - **S11 Expenses** — categories, multi-allocation, receipts, approve/post, hard self-approval
   block, per-employee **reimbursement** worklist.
+- **S12 Job costing & profitability** — `costing` module: actual cost from approved timesheets
+  (× employee/crew cost rate, overtime-weighted), vehicle/equipment assignment hours × cost rate,
+  and posted expenses by category; gross profit / margin / budget variance; per-line **estimate
+  cost hooks** for projected margin. Drives `COMPLETED → COSTING_REVIEW → READY_FOR_INVOICE`,
+  which are now **removed from the manual status picker** (workflow-driven only). Costing tab on
+  the job page (`jobs.costing_view` / `jobs.costing_review`).
+- **S13 Finance dashboard** — `GET /dashboard/finance` + `/finance` page: billed revenue &
+  output VAT, cash collected, receivables/overdue (reuses aging), realised gross profit & avg
+  margin, expenses by category, net VAT, unbilled completed work, invoice-status pipeline; date
+  window filter (`dashboard.finance.view`).
+- **Critical finance alerts** — `finance-alerts` module: event-triggered (invoice > PO, PO ≥ 90%
+  consumed on issue; over-budget / margin-below-target on cost review) plus a daily `@nestjs/schedule`
+  sweep (overdue invoices, completed-but-uninvoiced jobs), fanned to permission-holders with an
+  unread-duplicate guard. Seven finance `NotificationType` values added.
 
 ### Recent enhancements (this working period)
 - **Vehicles** — fleet fields to match the real sheet: door no., Arabic plate, car/plate
@@ -71,29 +86,17 @@ audit log; notifications; operations & assets dashboards. Docker dev stack.
 This is the **complete** list, consolidated from the code, README, ARCHITECTURE.md, PHASE2.md,
 the SRS, and the audit docs. Nothing here is implemented today.
 
-### Phase 2 — remaining finance features
-- **S12 — Job Costing & Profitability** (the profit feature). Schema fields are pre-wired but
-  **no logic exists** (`Job.actualCost/grossProfit/grossMarginPct/costReviewedAt/costReviewedById`,
-  `Estimate.estimatedCost/estimatedMarginPct`, `EstimateLineItem.estimatedUnitCost/lineCost`).
-  Was built once and **reverted** per decision. Intended scope (PHASE2 §5.4): compute
-  `actualCost` by category (labour = Σ approved timesheet hrs × `employee.costRate`;
-  vehicle/equipment = Σ `JobAssignment.actualHours` × `costRate`; + posted expenses by
-  category), then `grossProfit`, `grossMarginPct`, cost variance vs. `costBudget`, and
-  estimate-vs-actual margin; backfill the S7 estimate cost hooks; wire the status side-effects
-  `COMPLETED → COSTING_REVIEW → READY_FOR_INVOICE`.
-- **S13 — Finance Dashboard & Reports** (PHASE2 §5.5). KPIs: monthly revenue/expense/gross
-  profit/margin, net-profit estimate, unbilled revenue, AR, overdue invoices, collected vs.
-  pending, expense-by-category, profit-by-job/client/service-line. Reports: revenue,
-  expense-by-category, profit, receivables aging, unbilled work, VAT report, cash collection,
-  overdue invoices; with date/client/service-line/region/status filters. The home dashboard
-  shows **no finance KPIs** today.
-- **Critical finance alerts** (PHASE2 §6) — via notifications: cost over budget, margin below
-  target, PO nearly consumed, invoice exceeds PO, invoice overdue, completed-but-not-invoiced,
-  expense missing category/allocation, client payment delayed. **Blocked** on adding the
-  finance-alert values back to `NotificationType` (it currently has 8 values, none finance).
-- **Consequence — dead lifecycle states:** ~~selectable but undriven~~ **Resolved 2026-07-02:**
-  `COSTING_REVIEW`/`READY_FOR_INVOICE` are now hidden from the manual picker (frontend only);
-  the backend state machine is unchanged and ready for S12.
+### Phase 2 — finance: COMPLETE (2026-07-05)
+S12 job costing, S13 finance dashboard, and the critical finance alerts are **built and live**
+— see §2. The `COSTING_REVIEW`/`READY_FOR_INVOICE` states are now workflow-driven (and blocked
+from the manual status endpoint). Deferred fast-follows within this area:
+- **Full parametric report suite** (revenue/expense/profit **by client / service-line / month**
+  with date/client/region filters) and **Excel/PDF export** — the S13 dashboard delivers the
+  KPIs + aging + VAT + expense-by-category, but not the drill-down reports (PHASE2 §5.5).
+- **Email/SMS delivery of alerts** — alerts are **in-app only** (blocked on the SMTP layer below).
+- **Overtime/standby cost weightings** (currently 1.5× / 1.0×) and the **margin/PO thresholds**
+  (10% / 90%) are assumptions in `costing.constants.ts` / `finance-alerts.constants.ts` —
+  confirm with Finance during UAT.
 
 ### Compliance / e-invoicing
 - **ZATCA Phase-2 e-invoicing** — only Phase-1 QR (TLV) is emitted today. Phase-2 needs the
