@@ -161,7 +161,10 @@
       "Bash(git commit -m 'feat\\(S12/S13\\): job costing & profitability, finance dashboard, critical finance alerts *)",
       "Bash(git commit -m 'feat\\(deploy\\): self-hosting pack — LAN/VPN-only TLS stack, backups, runbook *)",
       "Bash(git commit -m 'docs: Phase-2 completion status, architecture/security diagrams, refreshed audit report *)",
-      "Bash(echo \"clean:$?\")"
+      "Bash(echo \"clean:$?\")",
+      "Bash(nc -z localhost 5434)",
+      "Bash(python3 -)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "/tmp",

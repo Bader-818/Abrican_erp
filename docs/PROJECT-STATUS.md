@@ -14,12 +14,14 @@ see the companion [SYSTEM-OVERVIEW.md](SYSTEM-OVERVIEW.md). Other companions:
 - Codebase audited (consistency + invariants + tests) and pentested — **all 8 pentest
   findings FIXED 2026-07-02** (handover hardening pass, see [audit/PENTEST.md](audit/PENTEST.md)).
 - Logic sweep 2026-07-02: 4 bugs fixed (F-007…F-010, incl. a HIGH document-numbering bug and
-  two finance race conditions), 2 design questions open (F-011/F-012) — see
+  two finance race conditions). The two open design questions were resolved and fixed
+  2026-07-08: **F-011** timesheet/daily-report self-approval block, **F-012** invoice numbers
+  assigned at issue time (drafts consume no numbers) — **all findings closed**, see
   [audit/FINDINGS.md](audit/FINDINGS.md).
 - Source is on **GitHub** (private, `main`). A **UAT database is live on Supabase** (synthetic data).
 - **Not yet deployed** to any hosted environment; no real users have tested it yet.
 - Verified size: **51 permissions · 10 roles · 29 Prisma models · 27 enums · 9 migrations**.
-- Tests (runner-authoritative, 2026-07-05): **204 backend unit** (32 files) · **33 e2e**
+- Tests (runner-authoritative, 2026-07-08): **212 backend unit** (32 files) · **34 e2e**
   (3 files) · **27 frontend** (4 files) — all green; consistency audit **0 findings**.
 
 ---

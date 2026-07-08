@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { randomBytes, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
@@ -337,10 +337,16 @@ async function main() {
   if (existingAdmin) {
     console.log(`Admin user ${adminEmail} already exists; credentials left untouched.`);
   } else {
-    // Never ship a documented default credential (pentest P-01). Without
-    // ADMIN_PASSWORD a random password is generated and printed exactly once.
-    const envPassword = process.env.ADMIN_PASSWORD?.trim();
-    const adminPassword = envPassword || `Abrican-${randomBytes(12).toString('base64url')}`;
+    // Never ship a documented default credential (pentest P-01), and never
+    // generate one either: the first admin password MUST come from the
+    // ADMIN_PASSWORD environment variable, supplied and stored by the owner.
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+    if (!adminPassword) {
+      throw new Error(
+        `ADMIN_PASSWORD is required to create the first admin user (${adminEmail}). ` +
+          'Set it in the environment and re-run the seed — it is never generated or defaulted.',
+      );
+    }
     const mustChangePassword = process.env.ADMIN_FORCE_PASSWORD_CHANGE !== 'false';
     const passwordHash = await bcrypt.hash(adminPassword, 10);
 
@@ -355,10 +361,6 @@ async function main() {
       },
     });
 
-    if (!envPassword) {
-      console.log(`Generated admin password for ${adminEmail}: ${adminPassword}`);
-      console.log('Store it now — it is not persisted anywhere else and will not be shown again.');
-    }
     if (mustChangePassword) {
       console.log('The admin must set a new password at first login.');
     }
