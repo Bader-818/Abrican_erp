@@ -1,10 +1,10 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { ApprovalStatus, AuditAction } from '@prisma/client';
 import { TimesheetsService } from './timesheets.service';
 import { AuthenticatedUser } from '../common/types/authenticated-user.interface';
 
-function makeUser(): AuthenticatedUser {
-  return { id: 'u1', email: 'a@b.c', name: 'T', roleId: 'r', roleName: 'Admin', permissions: [], mfaEnabled: false, mustChangePassword: false };
+function makeUser(id = 'u1'): AuthenticatedUser {
+  return { id, email: 'a@b.c', name: 'T', roleId: 'r', roleName: 'Admin', permissions: [], mfaEnabled: false, mustChangePassword: false };
 }
 
 describe('TimesheetsService', () => {
@@ -62,8 +62,28 @@ describe('TimesheetsService', () => {
     await expect(service.approve('ts-1', makeUser())).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('blocks approving a timesheet you created (F-011)', async () => {
+    prisma.timesheet.findUnique.mockResolvedValue({
+      approvalStatus: ApprovalStatus.SUBMITTED,
+      createdById: 'u1',
+    });
+    await expect(service.approve('ts-1', makeUser('u1'))).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.timesheet.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks rejecting a timesheet you created (F-011)', async () => {
+    prisma.timesheet.findUnique.mockResolvedValue({
+      approvalStatus: ApprovalStatus.SUBMITTED,
+      createdById: 'u1',
+    });
+    await expect(service.reject('ts-1', 'nope', makeUser('u1'))).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('approves a SUBMITTED timesheet and stamps approver', async () => {
-    prisma.timesheet.findUnique.mockResolvedValue({ approvalStatus: ApprovalStatus.SUBMITTED });
+    prisma.timesheet.findUnique.mockResolvedValue({
+      approvalStatus: ApprovalStatus.SUBMITTED,
+      createdById: 'u2',
+    });
     const result = await service.approve('ts-1', makeUser());
     expect(result.approvalStatus).toBe(ApprovalStatus.APPROVED);
     expect(prisma.timesheet.update).toHaveBeenCalledWith(

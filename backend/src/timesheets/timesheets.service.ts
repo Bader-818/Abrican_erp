@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -173,7 +174,8 @@ export class TimesheetsService {
   }
 
   async approve(id: string, user: AuthenticatedUser, ipAddress?: string) {
-    await this.requireStatus(id, ApprovalStatus.SUBMITTED);
+    const existing = await this.requireStatus(id, ApprovalStatus.SUBMITTED);
+    this.assertNotSelf(existing.createdById, user, 'approve');
     const updated = await this.prisma.timesheet.update({
       where: { id },
       data: {
@@ -188,7 +190,8 @@ export class TimesheetsService {
   }
 
   async reject(id: string, reason: string | undefined, user: AuthenticatedUser, ipAddress?: string) {
-    await this.requireStatus(id, ApprovalStatus.SUBMITTED);
+    const existing = await this.requireStatus(id, ApprovalStatus.SUBMITTED);
+    this.assertNotSelf(existing.createdById, user, 'reject');
     const updated = await this.prisma.timesheet.update({
       where: { id },
       data: { approvalStatus: ApprovalStatus.REJECTED, rejectionReason: reason ?? null },
@@ -203,11 +206,19 @@ export class TimesheetsService {
   private async requireStatus(id: string, status: ApprovalStatus) {
     const existing = await this.prisma.timesheet.findUnique({
       where: { id },
-      select: { approvalStatus: true },
+      select: { approvalStatus: true, createdById: true },
     });
     if (!existing) throw new NotFoundException('Timesheet not found');
     if (existing.approvalStatus !== status) {
       throw new ConflictException(`Timesheet must be ${status} for this action (it is ${existing.approvalStatus})`);
+    }
+    return existing;
+  }
+
+  private assertNotSelf(createdById: string, user: AuthenticatedUser, action: string) {
+    // Separation of duties (SRS 168): nobody actions their own timesheet.
+    if (createdById === user.id) {
+      throw new ForbiddenException(`You cannot ${action} a timesheet you created`);
     }
   }
 

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { ApprovalStatus, AuditAction } from '@prisma/client';
 import { DailyReportsService } from './daily-reports.service';
 import { AuthenticatedUser } from '../common/types/authenticated-user.interface';
@@ -51,8 +51,28 @@ describe('DailyReportsService', () => {
     await expect(service.approve('dr-1', makeUser())).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('blocks approving a report you created (F-011)', async () => {
+    prisma.dailyReport.findUnique.mockResolvedValue({
+      approvalStatus: ApprovalStatus.SUBMITTED,
+      createdById: 'u1',
+    });
+    await expect(service.approve('dr-1', makeUser('u1'))).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.dailyReport.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks rejecting a report you created (F-011)', async () => {
+    prisma.dailyReport.findUnique.mockResolvedValue({
+      approvalStatus: ApprovalStatus.SUBMITTED,
+      createdById: 'u1',
+    });
+    await expect(service.reject('dr-1', 'nope', makeUser('u1'))).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('approves a SUBMITTED report and stamps approver', async () => {
-    prisma.dailyReport.findUnique.mockResolvedValue({ approvalStatus: ApprovalStatus.SUBMITTED });
+    prisma.dailyReport.findUnique.mockResolvedValue({
+      approvalStatus: ApprovalStatus.SUBMITTED,
+      createdById: 'u2',
+    });
     const result = await service.approve('dr-1', makeUser());
     expect(result.approvalStatus).toBe(ApprovalStatus.APPROVED);
     expect(prisma.dailyReport.update).toHaveBeenCalledWith(
