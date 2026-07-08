@@ -9,7 +9,11 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuthenticatedUser } from '../common/types/authenticated-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChangeJobStatusDto } from './dto/change-job-status.dto';
-import { ALLOWED_TRANSITIONS, isTransitionAllowed } from './job-status.constants';
+import {
+  ALLOWED_TRANSITIONS,
+  isTransitionAllowed,
+  MANUAL_STATUS_CHANGE_BLOCKLIST,
+} from './job-status.constants';
 
 /**
  * Forward-only ordering of the finance lifecycle, used by `applyFinanceStatus`.
@@ -63,6 +67,12 @@ export class JobStatusService {
 
     if (job.status === dto.toStatus) {
       throw new BadRequestException(`Job is already ${dto.toStatus}`);
+    }
+
+    if (MANUAL_STATUS_CHANGE_BLOCKLIST.includes(dto.toStatus)) {
+      throw new BadRequestException(
+        `${dto.toStatus} cannot be set manually — it is driven by the costing or invoicing workflow`,
+      );
     }
 
     if (!isTransitionAllowed(job.status, dto.toStatus)) {

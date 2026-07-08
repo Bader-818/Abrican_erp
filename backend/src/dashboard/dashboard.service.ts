@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { JobStatus } from '@prisma/client';
+import { ApprovalStatus, InvoiceStatus, JobStatus } from '@prisma/client';
 import { AssignmentsService } from '../assignments/assignments.service';
+import { round2 } from '../common/finance/line-math';
+import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DashboardFinanceQueryDto } from './dto/dashboard-finance-query.dto';
 
 function daysFromNow(days: number): Date {
   const d = new Date();
@@ -21,11 +24,31 @@ const ACTIVE_JOB_STATUSES: JobStatus[] = [
   JobStatus.ON_HOLD,
 ];
 
+// Invoices that count as issued revenue (past DRAFT/approval, not cancelled).
+const ISSUED_INVOICE_STATUSES: InvoiceStatus[] = [
+  InvoiceStatus.SUBMITTED,
+  InvoiceStatus.PARTIALLY_PAID,
+  InvoiceStatus.PAID,
+  InvoiceStatus.OVERDUE,
+];
+
+// Completed work that has not yet been billed.
+const UNBILLED_JOB_STATUSES: JobStatus[] = [
+  JobStatus.COMPLETED,
+  JobStatus.COSTING_REVIEW,
+  JobStatus.READY_FOR_INVOICE,
+];
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assignments: AssignmentsService,
+    private readonly payments: PaymentsService,
   ) {}
 
   async operations() {
@@ -167,6 +190,90 @@ export class DashboardService {
           d.client?.name ??
           'Company-wide',
       })),
+    };
+  }
+
+  /**
+   * Finance KPIs for a reporting window (defaults to the current month): billed
+   * revenue and output VAT, cash collected, receivables/overdue (via the aging
+   * report), realised gross profit on cost-reviewed jobs, posted expenses by
+   * category and input VAT, net VAT, unbilled completed work, and the invoice
+   * status pipeline.
+   */
+  async finance(query: DashboardFinanceQueryDto) {
+    const now = new Date();
+    const from = query.from ? new Date(query.from) : startOfMonth(now);
+    const to = query.to ? new Date(query.to) : now;
+    const inRange = { gte: from, lte: to };
+
+    const [invoiced, collected, aging, profit, postedExpenses, unbilled, invoicesByStatusRaw] =
+      await Promise.all([
+        this.prisma.invoice.aggregate({
+          _sum: { totalAmount: true, subtotal: true, vatAmount: true },
+          where: { status: { in: ISSUED_INVOICE_STATUSES }, invoiceDate: inRange },
+        }),
+        this.prisma.payment.aggregate({ _sum: { amount: true }, where: { paymentDate: inRange } }),
+        this.payments.aging(),
+        this.prisma.job.aggregate({
+          _sum: { grossProfit: true },
+          _avg: { grossMarginPct: true },
+          _count: { _all: true },
+          where: { costReviewedAt: inRange },
+        }),
+        this.prisma.expense.findMany({
+          where: { approvalStatus: ApprovalStatus.POSTED, postedAt: inRange },
+          select: { category: true, totalAmount: true, vatAmount: true },
+        }),
+        this.prisma.job.aggregate({
+          _sum: { jobValue: true },
+          _count: { _all: true },
+          where: { status: { in: UNBILLED_JOB_STATUSES }, invoices: { none: {} } },
+        }),
+        this.prisma.invoice.groupBy({ by: ['status'], _count: { _all: true } }),
+      ]);
+
+    const outputVat = round2(Number(invoiced._sum.vatAmount ?? 0));
+    const expensesByCategory: Record<string, number> = {};
+    let expensesTotal = 0;
+    let inputVat = 0;
+    for (const e of postedExpenses) {
+      const amount = Number(e.totalAmount);
+      expensesByCategory[e.category] = round2((expensesByCategory[e.category] ?? 0) + amount);
+      expensesTotal = round2(expensesTotal + amount);
+      inputVat = round2(inputVat + Number(e.vatAmount));
+    }
+
+    const overdueAmount = round2(
+      aging.invoices
+        .filter((i) => i.daysPastDue > 0)
+        .reduce((sum, i) => sum + i.outstandingAmount, 0),
+    );
+
+    return {
+      range: { from, to },
+      revenue: {
+        invoicedTotal: round2(Number(invoiced._sum.totalAmount ?? 0)),
+        invoicedSubtotal: round2(Number(invoiced._sum.subtotal ?? 0)),
+        outputVat,
+        collected: round2(Number(collected._sum.amount ?? 0)),
+      },
+      receivables: {
+        totalOutstanding: aging.totalOutstanding,
+        overdueAmount,
+        aging: aging.buckets,
+      },
+      profit: {
+        jobsReviewed: profit._count._all,
+        grossProfit: round2(Number(profit._sum.grossProfit ?? 0)),
+        avgMarginPct: profit._avg.grossMarginPct != null ? round2(Number(profit._avg.grossMarginPct)) : null,
+      },
+      expenses: { total: expensesTotal, inputVat, byCategory: expensesByCategory },
+      vat: { output: outputVat, input: inputVat, net: round2(outputVat - inputVat) },
+      unbilled: {
+        count: unbilled._count._all,
+        value: round2(Number(unbilled._sum.jobValue ?? 0)),
+      },
+      invoicesByStatus: this.toCountMap(invoicesByStatusRaw),
     };
   }
 

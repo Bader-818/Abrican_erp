@@ -27,3 +27,18 @@ export const ALLOWED_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
 export function isTransitionAllowed(from: JobStatus, to: JobStatus): boolean {
   return ALLOWED_TRANSITIONS[from].includes(to);
 }
+
+/**
+ * Finance statuses that a user may not set through the manual status-change
+ * endpoint — they are driven by their owning workflow instead:
+ *  - COSTING_REVIEW / READY_FOR_INVOICE → the costing module (S12);
+ *  - INVOICED / PARTIALLY_PAID / PAID    → invoice-issue / payment events.
+ * They remain in ALLOWED_TRANSITIONS so those event-driven paths still work.
+ */
+export const MANUAL_STATUS_CHANGE_BLOCKLIST: JobStatus[] = [
+  JobStatus.COSTING_REVIEW,
+  JobStatus.READY_FOR_INVOICE,
+  JobStatus.INVOICED,
+  JobStatus.PARTIALLY_PAID,
+  JobStatus.PAID,
+];

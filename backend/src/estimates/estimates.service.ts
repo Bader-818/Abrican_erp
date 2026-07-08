@@ -7,7 +7,7 @@ import {
 import { AuditAction, BillingUnit, EstimateStatus, LineKind, Prisma } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { paginate } from '../common/helpers/pagination.helper';
-import { computeLine, sumTotals, DEFAULT_VAT_RATE } from '../common/finance/line-math';
+import { computeLine, round2, sumTotals, DEFAULT_VAT_RATE } from '../common/finance/line-math';
 import { AuthenticatedUser } from '../common/types/authenticated-user.interface';
 import { JobsService } from '../jobs/jobs.service';
 import { PdfService } from '../pdf/pdf.service';
@@ -68,6 +68,8 @@ const ESTIMATE_DETAIL_SELECT = {
       lineSubtotal: true,
       lineVat: true,
       lineTotal: true,
+      estimatedUnitCost: true,
+      lineCost: true,
       sortOrder: true,
     },
   },
@@ -194,6 +196,7 @@ export class EstimatesService {
     this.validateDates(dto.plannedStartDate, dto.plannedEndDate);
     const lines = await this.buildLines(dto.items, dto.contractId);
     const totals = sumTotals(lines);
+    const cost = this.costRollup(lines, Number(totals.subtotal));
 
     const created = await this.withNumber('EST', (estimateNumber) =>
       this.prisma.estimate.create({
@@ -211,6 +214,8 @@ export class EstimatesService {
           subtotal: totals.subtotal,
           vatAmount: totals.vatAmount,
           totalAmount: totals.totalAmount,
+          estimatedCost: cost.estimatedCost,
+          estimatedMarginPct: cost.estimatedMarginPct,
           createdById: user.id,
           lineItems: { create: lines },
         },
@@ -249,9 +254,11 @@ export class EstimatesService {
 
     let totals: ReturnType<typeof sumTotals> | undefined;
     let lines: Awaited<ReturnType<typeof this.buildLines>> | undefined;
+    let cost: ReturnType<typeof this.costRollup> | undefined;
     if (dto.items) {
       lines = await this.buildLines(dto.items, contractId ?? undefined);
       totals = sumTotals(lines);
+      cost = this.costRollup(lines, Number(totals.subtotal));
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -277,6 +284,8 @@ export class EstimatesService {
                 subtotal: totals.subtotal,
                 vatAmount: totals.vatAmount,
                 totalAmount: totals.totalAmount,
+                estimatedCost: cost?.estimatedCost ?? null,
+                estimatedMarginPct: cost?.estimatedMarginPct ?? null,
               }
             : {}),
           ...(lines ? { lineItems: { create: lines } } : {}),
@@ -489,21 +498,47 @@ export class EstimatesService {
         unitPrice,
         vatRate,
       });
+      // Optional internal cost projection (S12) — ex-VAT, never client-facing.
+      const hours = item.hours ?? 1;
+      const estimatedUnitCost = item.estimatedUnitCost ?? null;
+      const lineCost =
+        estimatedUnitCost != null ? round2(item.quantity * hours * estimatedUnitCost) : null;
       return {
         contractRateCardId: item.contractRateCardId,
         lineKind: item.lineKind ?? LineKind.OTHER,
         description: item.description,
         quantity: item.quantity,
-        hours: item.hours ?? 1,
+        hours,
         unit: item.unit ?? BillingUnit.HOUR,
         unitPrice,
         vatRate,
         lineSubtotal: amounts.lineSubtotal,
         lineVat: amounts.lineVat,
         lineTotal: amounts.lineTotal,
+        estimatedUnitCost,
+        lineCost,
         sortOrder: index,
       };
     });
+  }
+
+  /**
+   * Roll up the optional per-line costs into the estimate's estimatedCost and
+   * projected margin (vs the ex-VAT subtotal). Returns nulls when no line carried
+   * a cost, so an estimate without cost input stays uncosted.
+   */
+  private costRollup(
+    lines: { lineCost: number | null }[],
+    subtotal: number,
+  ): { estimatedCost: number | null; estimatedMarginPct: number | null } {
+    const hasCost = lines.some((l) => l.lineCost != null);
+    if (!hasCost) {
+      return { estimatedCost: null, estimatedMarginPct: null };
+    }
+    const estimatedCost = round2(lines.reduce((sum, l) => sum + (l.lineCost ?? 0), 0));
+    const estimatedMarginPct =
+      subtotal > 0 ? round2(((subtotal - estimatedCost) / subtotal) * 100) : null;
+    return { estimatedCost, estimatedMarginPct };
   }
 
   private validateDates(start: string, end: string) {

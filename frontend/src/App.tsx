@@ -24,6 +24,7 @@ import { EstimateDetailPage } from '@/pages/estimates/EstimateDetailPage'
 import { InvoicesPage } from '@/pages/invoices/InvoicesPage'
 import { InvoiceDetailPage } from '@/pages/invoices/InvoiceDetailPage'
 import { ReceivablesPage } from '@/pages/invoices/ReceivablesPage'
+import { FinanceDashboardPage } from '@/pages/finance/FinanceDashboardPage'
 import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage'
 import { DailyReportsPage } from '@/pages/daily-reports/DailyReportsPage'
 import { DailyReportDetailPage } from '@/pages/daily-reports/DailyReportDetailPage'
@@ -175,6 +176,14 @@ function App() {
                 element={
                   <ProtectedRoute permission="payments.view">
                     <ReceivablesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="finance"
+                element={
+                  <ProtectedRoute permission="dashboard.finance.view">
+                    <FinanceDashboardPage />
                   </ProtectedRoute>
                 }
               />

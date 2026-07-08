@@ -104,6 +104,14 @@ export type NotificationType =
   | 'PO_NEAR_EXPIRY'
   | 'JOB_STATUS_CHANGED'
   | 'GENERAL'
+  // Finance alerts (S13)
+  | 'INVOICE_OVERDUE'
+  | 'INVOICE_EXCEEDS_PO'
+  | 'PO_NEARLY_CONSUMED'
+  | 'COST_OVER_BUDGET'
+  | 'MARGIN_BELOW_TARGET'
+  | 'JOB_NOT_INVOICED'
+  | 'PAYMENT_DELAYED'
 
 export interface Notification {
   id: string
@@ -258,6 +266,27 @@ export interface JobDetail extends Omit<JobSummary, 'contract'> {
   description: string | null
   contract: { id: string; contractNumber: string; title: string } | null
   statusHistory: JobStatusHistoryEntry[]
+}
+
+// Job costing & profitability (S12). All money figures are computed aggregates
+// returned as numbers (backend round2), not raw Decimal strings.
+export interface JobCostBreakdown {
+  jobId: string
+  status: JobStatus
+  labourCost: number // audit:decimal-ok — computed aggregate (round2 → number)
+  vehicleCost: number // audit:decimal-ok — computed aggregate (round2 → number)
+  equipmentCost: number // audit:decimal-ok — computed aggregate (round2 → number)
+  expensesByCategory: Record<string, number> // audit:decimal-ok — computed aggregate (round2 → number)
+  expensesTotal: number // audit:decimal-ok — computed aggregate (round2 → number)
+  actualCost: number // audit:decimal-ok — computed aggregate (round2 → number)
+  revenue: number // audit:decimal-ok — computed aggregate (round2 → number)
+  revenueBasis: 'INVOICED' | 'JOB_VALUE' | 'NONE'
+  grossProfit: number // audit:decimal-ok — computed aggregate (round2 → number)
+  grossMarginPct: number | null // audit:decimal-ok — computed aggregate (round2 → number)
+  costBudget: number | null // audit:decimal-ok — computed aggregate (round2 → number)
+  costVariance: number | null // audit:decimal-ok — computed aggregate (round2 → number)
+  costReviewedAt: string | null
+  warnings: string[]
 }
 
 export type AvailabilityStatus = 'AVAILABLE' | 'ASSIGNED' | 'ON_LEAVE' | 'SICK' | 'INACTIVE'
@@ -540,17 +569,26 @@ export interface EstimateSummary {
   contract: { id: string; contractNumber: string } | null
 }
 
+// Estimate lines carry an optional internal cost projection (S12); invoice lines
+// do not, so this extends the shared shape rather than widening it.
+export interface EstimateLineItem extends FinanceLineItem {
+  estimatedUnitCost: string | null
+  lineCost: string | null
+}
+
 export interface EstimateDetail extends EstimateSummary {
   notes: string | null
   subtotal: string
   vatAmount: string
+  estimatedCost: string | null
+  estimatedMarginPct: string | null
   pdfUrl: string | null
   approvedAt: string | null
   updatedAt: string
   job: { id: string; jobCode: string; title: string; status: JobStatus } | null
   createdBy: { id: string; name: string } | null
   approvedBy: { id: string; name: string } | null
-  lineItems: FinanceLineItem[]
+  lineItems: EstimateLineItem[]
 }
 
 export interface InvoicePaymentLine {
@@ -639,6 +677,43 @@ export interface AgingReport {
   buckets: AgingBuckets
   totalOutstanding: number // audit:decimal-ok — computed aggregate (round2 → number)
   invoices: AgingInvoiceRow[]
+}
+
+// Finance dashboard KPIs (S13). All money figures are computed aggregates
+// returned as numbers (backend round2), not raw Decimal strings.
+export interface FinanceDashboard {
+  range: { from: string; to: string }
+  revenue: {
+    invoicedTotal: number // audit:decimal-ok — computed aggregate (round2 → number)
+    invoicedSubtotal: number // audit:decimal-ok — computed aggregate (round2 → number)
+    outputVat: number // audit:decimal-ok — computed aggregate (round2 → number)
+    collected: number // audit:decimal-ok — computed aggregate (round2 → number)
+  }
+  receivables: {
+    totalOutstanding: number // audit:decimal-ok — computed aggregate (round2 → number)
+    overdueAmount: number // audit:decimal-ok — computed aggregate (round2 → number)
+    aging: AgingBuckets
+  }
+  profit: {
+    jobsReviewed: number
+    grossProfit: number // audit:decimal-ok — computed aggregate (round2 → number)
+    avgMarginPct: number | null // audit:decimal-ok — computed aggregate (round2 → number)
+  }
+  expenses: {
+    total: number // audit:decimal-ok — computed aggregate (round2 → number)
+    inputVat: number // audit:decimal-ok — computed aggregate (round2 → number)
+    byCategory: Record<string, number> // audit:decimal-ok — computed aggregate (round2 → number)
+  }
+  vat: {
+    output: number // audit:decimal-ok — computed aggregate (round2 → number)
+    input: number // audit:decimal-ok — computed aggregate (round2 → number)
+    net: number // audit:decimal-ok — computed aggregate (round2 → number)
+  }
+  unbilled: {
+    count: number
+    value: number // audit:decimal-ok — computed aggregate (round2 → number)
+  }
+  invoicesByStatus: Record<string, number>
 }
 
 // =============================================================================

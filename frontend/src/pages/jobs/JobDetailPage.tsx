@@ -19,6 +19,7 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatters'
 import { ALLOWED_TRANSITIONS } from '@/lib/job-status'
 import type { Assignment, JobStatusHistoryEntry } from '@/types'
 import { ChangeStatusDialog } from './ChangeStatusDialog'
+import { JobCostingPanel } from './JobCostingPanel'
 import { JobFormDialog } from './JobFormDialog'
 import { AssignmentFormDialog } from '../scheduling/AssignmentFormDialog'
 import { assignmentResourceName } from '../scheduling/SchedulePage'
@@ -39,6 +40,7 @@ export function JobDetailPage() {
   const canChangeStatus = hasPermission('jobs.status_change')
   const canViewAssignments = hasPermission('assignments.view')
   const canManageAssignments = hasPermission('assignments.manage')
+  const canViewCosting = hasPermission('jobs.costing_view')
   const queryClient = useQueryClient()
 
   const [editOpen, setEditOpen] = useState(false)
@@ -164,6 +166,7 @@ export function JobDetailPage() {
           {canViewAssignments ? (
             <TabsTrigger value="assignments">Assignments ({job._count.assignments})</TabsTrigger>
           ) : null}
+          {canViewCosting ? <TabsTrigger value="costing">Costing</TabsTrigger> : null}
           <TabsTrigger value="history">Status history ({job.statusHistory.length})</TabsTrigger>
         </TabsList>
 
@@ -228,6 +231,12 @@ export function JobDetailPage() {
                 />
               </div>
             </div>
+          </TabsContent>
+        ) : null}
+
+        {canViewCosting ? (
+          <TabsContent value="costing">
+            <JobCostingPanel jobId={job.id} status={job.status} />
           </TabsContent>
         ) : null}
 

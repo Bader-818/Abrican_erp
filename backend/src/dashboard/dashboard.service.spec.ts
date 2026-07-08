@@ -35,8 +35,9 @@ describe('DashboardService.operations', () => {
       assignmentCount: 1,
     }));
     assignments = { utilization: jest.fn().mockResolvedValue({ resources }) };
+    const payments = { aging: jest.fn() };
 
-    service = new DashboardService(prisma, assignments as any);
+    service = new DashboardService(prisma, assignments as any, payments as any);
   });
 
   it('maps grouped counts and passes through scalar metrics', async () => {
@@ -53,5 +54,67 @@ describe('DashboardService.operations', () => {
     expect(assignments.utilization).toHaveBeenCalledTimes(1);
     expect(result.topUtilization).toHaveLength(5);
     expect(result.topUtilization[0].utilizationPct).toBe(100);
+  });
+});
+
+describe('DashboardService.finance', () => {
+  let prisma: any;
+  let payments: { aging: jest.Mock };
+  let service: DashboardService;
+
+  beforeEach(() => {
+    prisma = {
+      invoice: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { totalAmount: 1150, subtotal: 1000, vatAmount: 150 },
+        }),
+        groupBy: jest.fn().mockResolvedValue([
+          { status: 'PAID', _count: { _all: 3 } },
+          { status: 'SUBMITTED', _count: { _all: 2 } },
+        ]),
+      },
+      payment: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 500 } }) },
+      job: {
+        aggregate: jest
+          .fn()
+          // profit aggregate (cost-reviewed jobs)
+          .mockResolvedValueOnce({ _sum: { grossProfit: 400 }, _avg: { grossMarginPct: 40 }, _count: { _all: 2 } })
+          // unbilled aggregate
+          .mockResolvedValueOnce({ _sum: { jobValue: 8000 }, _count: { _all: 1 } }),
+      },
+      expense: {
+        findMany: jest.fn().mockResolvedValue([
+          { category: 'MATERIAL', totalAmount: 230, vatAmount: 30 },
+          { category: 'FUEL', totalAmount: 115, vatAmount: 15 },
+        ]),
+      },
+    };
+    payments = {
+      aging: jest.fn().mockResolvedValue({
+        buckets: { current: 100, d31_60: 50, d61_90: 0, d90_plus: 25 },
+        totalOutstanding: 175,
+        invoices: [
+          { outstandingAmount: 100, daysPastDue: -5 }, // not yet due
+          { outstandingAmount: 50, daysPastDue: 40 },
+          { outstandingAmount: 25, daysPastDue: 95 },
+        ],
+      }),
+    };
+    service = new DashboardService(prisma, {} as any, payments as any);
+  });
+
+  it('aggregates revenue, receivables, profit, expenses, VAT, and unbilled work', async () => {
+    const r = await service.finance({});
+
+    expect(r.revenue).toEqual({ invoicedTotal: 1150, invoicedSubtotal: 1000, outputVat: 150, collected: 500 });
+    expect(r.receivables.totalOutstanding).toBe(175);
+    expect(r.receivables.overdueAmount).toBe(75); // 50 + 25 (excludes the not-yet-due 100)
+    expect(r.profit).toEqual({ jobsReviewed: 2, grossProfit: 400, avgMarginPct: 40 });
+    expect(r.expenses.total).toBe(345);
+    expect(r.expenses.inputVat).toBe(45);
+    expect(r.expenses.byCategory).toEqual({ MATERIAL: 230, FUEL: 115 });
+    expect(r.vat).toEqual({ output: 150, input: 45, net: 105 });
+    expect(r.unbilled).toEqual({ count: 1, value: 8000 });
+    expect(r.invoicesByStatus).toEqual({ PAID: 3, SUBMITTED: 2 });
   });
 });

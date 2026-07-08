@@ -43,7 +43,15 @@ describe('InvoicesService', () => {
     jobStatus = { applyFinanceStatus: jest.fn().mockResolvedValue(undefined) };
     pdf = { renderFinancialDocument: jest.fn().mockResolvedValue(Buffer.from('x')) };
     storage = { save: jest.fn().mockResolvedValue({ url: '/files/invoices/x.pdf' }) };
-    service = new InvoicesService(prisma as any, audit as any, jobStatus as any, pdf as any, storage as any);
+    const financeAlerts = { afterInvoiceIssued: jest.fn().mockResolvedValue(undefined) };
+    service = new InvoicesService(
+      prisma as any,
+      audit as any,
+      jobStatus as any,
+      pdf as any,
+      storage as any,
+      financeAlerts as any,
+    );
   });
 
   describe('createFromEstimate', () => {

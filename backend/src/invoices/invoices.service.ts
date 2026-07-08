@@ -19,6 +19,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { computeLine, round2, sumTotals } from '../common/finance/line-math';
 import { paginate } from '../common/helpers/pagination.helper';
 import { AuthenticatedUser } from '../common/types/authenticated-user.interface';
+import { FinanceAlertsService } from '../finance-alerts/finance-alerts.service';
 import { JobStatusService } from '../jobs/job-status.service';
 import { PdfService } from '../pdf/pdf.service';
 import { mapUnitLabel } from '../pdf/unit-label';
@@ -111,6 +112,7 @@ export class InvoicesService {
     private readonly jobStatusService: JobStatusService,
     private readonly pdfService: PdfService,
     @Inject('IStorageService') private readonly storage: IStorageService,
+    private readonly financeAlerts: FinanceAlertsService,
   ) {}
 
   async findAll(query: InvoicesQueryDto) {
@@ -515,6 +517,10 @@ export class InvoicesService {
       ipAddress,
       poOverride ? `Issued over PO balance. Override reason: ${dto.overrideReason}` : `Invoice ${invoice.invoiceNumber} issued`,
     );
+
+    // Best-effort PO-consumption alerts (never blocks the issue).
+    await this.financeAlerts.afterInvoiceIssued(id);
+
     return updated;
   }
 

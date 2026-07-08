@@ -11,6 +11,7 @@ import {
   FileText,
   HardHat,
   LayoutDashboard,
+  LineChart,
   Receipt,
   ReceiptText,
   ScrollText,
@@ -73,6 +74,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Finance',
     items: [
+      { label: 'Finance Dashboard', to: '/finance', icon: LineChart, permission: 'dashboard.finance.view' },
       { label: 'Estimates', to: '/estimates', icon: Calculator, permission: 'estimates.view' },
       { label: 'Invoices', to: '/invoices', icon: Receipt, permission: 'invoices.view' },
       { label: 'Receivables', to: '/receivables', icon: Coins, permission: 'payments.view' },

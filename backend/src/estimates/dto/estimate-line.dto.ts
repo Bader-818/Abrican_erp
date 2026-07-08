@@ -51,4 +51,15 @@ export class EstimateLineDto {
   @Min(0)
   @Max(100)
   vatRate?: number;
+
+  /**
+   * Optional internal cost per unit (what the work costs Abrican) — used only to
+   * project estimated margin (S12). Never shown to the client; independent of the
+   * selling unitPrice.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  estimatedUnitCost?: number;
 }

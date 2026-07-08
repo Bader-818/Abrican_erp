@@ -45,11 +45,18 @@ export const PHASE_2_STATUSES: JobStatus[] = [
 ]
 
 /**
- * Hidden from the manual status picker until S12 (job costing) drives them:
- * nothing acts on these states today, and invoicing fast-forwards a COMPLETED
- * job straight to INVOICED, so offering them only confuses users.
+ * Hidden from the manual status picker because a workflow drives them, not a
+ * person (mirrors the backend MANUAL_STATUS_CHANGE_BLOCKLIST):
+ *  - COSTING_REVIEW / READY_FOR_INVOICE → the job-costing panel (S12);
+ *  - INVOICED / PARTIALLY_PAID / PAID    → invoice-issue and payment events.
  */
-export const MANUAL_PICKER_HIDDEN: JobStatus[] = ['COSTING_REVIEW', 'READY_FOR_INVOICE']
+export const MANUAL_PICKER_HIDDEN: JobStatus[] = [
+  'COSTING_REVIEW',
+  'READY_FOR_INVOICE',
+  'INVOICED',
+  'PARTIALLY_PAID',
+  'PAID',
+]
 
 /** Transition targets a user may pick by hand (backend state machine minus S12-only states). */
 export function manualTransitionTargets(status: JobStatus): JobStatus[] {

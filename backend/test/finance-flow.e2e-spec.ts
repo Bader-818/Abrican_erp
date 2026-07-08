@@ -138,4 +138,50 @@ describe('Finance value chain (e2e)', () => {
     await http.post(`/api/v1/invoices/${inv.id}/issue`).set(auth()).send({}).expect(201);
     await http.post('/api/v1/payments').set(auth()).send({ invoiceId: inv.id, amount: TOTAL + 1 }).expect(400);
   });
+
+  // S12: cost review drives COMPLETED → COSTING_REVIEW → READY_FOR_INVOICE, and
+  // those finance states can no longer be set through the manual status endpoint.
+  it('runs the job cost review and marks it ready for invoice (S12)', async () => {
+    const est = await makeApprovedEstimate();
+    const jobId = (await http.post(`/api/v1/estimates/${est.id}/convert`).set(auth()).send({}).expect(201)).body.jobId;
+
+    for (const toStatus of ['PLANNED', 'APPROVED', 'SCHEDULED', 'ACTIVE', 'COMPLETED']) {
+      await http
+        .post(`/api/v1/jobs/${jobId}/status`)
+        .set(auth())
+        .send({ toStatus, overrideReason: toStatus === 'ACTIVE' ? 'e2e: no assignments' : undefined })
+        .expect(201);
+    }
+
+    // Finance states are workflow-driven now, not manually settable.
+    await http.post(`/api/v1/jobs/${jobId}/status`).set(auth()).send({ toStatus: 'COSTING_REVIEW' }).expect(400);
+
+    // Preview: no timesheets/assignments/expenses ⇒ zero cost, revenue from jobValue.
+    const costing = (await http.get(`/api/v1/jobs/${jobId}/costing`).set(auth()).expect(200)).body;
+    expect(costing.actualCost).toBe(0);
+    expect(costing.revenue).toBe(TOTAL);
+    expect(costing.revenueBasis).toBe('JOB_VALUE');
+
+    // Review persists profit and advances the job.
+    const reviewed = (await http.post(`/api/v1/jobs/${jobId}/costing/review`).set(auth()).expect(201)).body;
+    expect(reviewed.status).toBe('COSTING_REVIEW');
+    expect(reviewed.costReviewedAt).toBeTruthy();
+    const afterReview = (await http.get(`/api/v1/jobs/${jobId}`).set(auth()).expect(200)).body;
+    expect(afterReview.status).toBe('COSTING_REVIEW');
+
+    // Mark ready for invoice.
+    await http.post(`/api/v1/jobs/${jobId}/costing/ready-for-invoice`).set(auth()).expect(201);
+    const afterReady = (await http.get(`/api/v1/jobs/${jobId}`).set(auth()).expect(200)).body;
+    expect(afterReady.status).toBe('READY_FOR_INVOICE');
+  });
+
+  it('serves the finance dashboard with the expected shape (S13)', async () => {
+    const dash = (await http.get('/api/v1/dashboard/finance').set(auth()).expect(200)).body;
+    expect(dash).toHaveProperty('revenue.invoicedTotal');
+    expect(dash).toHaveProperty('receivables.totalOutstanding');
+    expect(dash).toHaveProperty('profit.grossProfit');
+    expect(dash).toHaveProperty('vat.net');
+    expect(dash).toHaveProperty('unbilled.count');
+    expect(dash).toHaveProperty('invoicesByStatus');
+  });
 });

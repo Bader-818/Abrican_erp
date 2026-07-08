@@ -172,6 +172,21 @@ export function EstimateDetailPage() {
         </table>
       </div>
 
+      {estimate.estimatedCost != null ? (
+        <div className="flex flex-wrap justify-end gap-x-8 gap-y-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+          <div className="text-slate-500">
+            Est. cost <span className="ml-2 font-medium text-slate-900">{formatCurrency(estimate.estimatedCost)}</span>
+          </div>
+          <div className="text-slate-500">
+            Est. margin{' '}
+            <span className="ml-2 font-medium text-slate-900">
+              {estimate.estimatedMarginPct != null ? `${Number(estimate.estimatedMarginPct).toFixed(1)}%` : '—'}
+            </span>
+          </div>
+          <div className="text-slate-400">(internal — excluded from the client PDF)</div>
+        </div>
+      ) : null}
+
       {estimate.notes ? (
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
           <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Notes</p>

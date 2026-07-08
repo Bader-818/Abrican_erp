@@ -26,6 +26,8 @@ export interface EstimateLinePayload {
   unit?: BillingUnit
   unitPrice: number
   vatRate?: number
+  /** Optional internal cost per unit (projects estimated margin; never client-facing). */
+  estimatedUnitCost?: number
 }
 
 export interface EstimatePayload {

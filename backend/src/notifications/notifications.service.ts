@@ -30,6 +30,44 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Fan a notification out to every active user whose role grants `permissionKey`
+   * (used for finance alerts). Idempotent per entity: if a recipient already has
+   * an *unread* notification of the same type + related entity, it is skipped so a
+   * daily sweep doesn't spam duplicates. Returns how many were created.
+   */
+  async notifyUsersWithPermission(
+    permissionKey: string,
+    params: Omit<CreateNotificationParams, 'userId'>,
+  ): Promise<{ notified: number }> {
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        role: { permissions: { some: { permission: { key: permissionKey } } } },
+      },
+      select: { id: true },
+    });
+
+    let notified = 0;
+    for (const user of users) {
+      if (params.relatedEntityId) {
+        const duplicate = await this.prisma.notification.findFirst({
+          where: {
+            userId: user.id,
+            type: params.type,
+            relatedEntityId: params.relatedEntityId,
+            isRead: false,
+          },
+          select: { id: true },
+        });
+        if (duplicate) continue;
+      }
+      await this.create({ ...params, userId: user.id });
+      notified += 1;
+    }
+    return { notified };
+  }
+
   async findAllForUser(userId: string, query: NotificationsQueryDto) {
     const where: Prisma.NotificationWhereInput = {
       userId,

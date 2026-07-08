@@ -72,10 +72,11 @@ interface LineRow {
   unit: BillingUnit
   unitPrice: string
   vatRate: string
+  estimatedUnitCost: string
 }
 
 function emptyLine(): LineRow {
-  return { lineKind: 'LABOR', description: '', quantity: '1', hours: '1', unit: 'HOUR', unitPrice: '', vatRate: '15' }
+  return { lineKind: 'LABOR', description: '', quantity: '1', hours: '1', unit: 'HOUR', unitPrice: '', vatRate: '15', estimatedUnitCost: '' }
 }
 
 /** Build a pre-filled line from a contract rate-card item (price editable after). */
@@ -89,6 +90,7 @@ function lineFromRateCard(card: RateCard): LineRow {
     unit: UNIT_MAP[card.unit] ?? 'UNIT',
     unitPrice: String(Number(card.unitPrice)),
     vatRate: card.vatApplicable ? '15' : '0',
+    estimatedUnitCost: '',
   }
 }
 
@@ -155,12 +157,19 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
   const totals = useMemo(() => {
     let subtotal = 0
     let vat = 0
+    let estCost = 0
+    let hasCost = false
     for (const l of lines) {
       const sub = num(l.quantity) * num(l.hours) * num(l.unitPrice)
       subtotal += sub
       vat += (sub * num(l.vatRate)) / 100
+      if (l.estimatedUnitCost.trim()) {
+        hasCost = true
+        estCost += num(l.quantity) * num(l.hours) * num(l.estimatedUnitCost)
+      }
     }
-    return { subtotal, vat, total: subtotal + vat }
+    const estMarginPct = hasCost && subtotal > 0 ? ((subtotal - estCost) / subtotal) * 100 : null
+    return { subtotal, vat, total: subtotal + vat, estCost, hasCost, estMarginPct }
   }, [lines])
 
   function updateLine(index: number, patch: Partial<LineRow>) {
@@ -181,6 +190,7 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
         unit: l.unit,
         unitPrice: num(l.unitPrice),
         vatRate: num(l.vatRate),
+        estimatedUnitCost: l.estimatedUnitCost.trim() ? num(l.estimatedUnitCost) : undefined,
       }))
       return createEstimate({
         clientId,
@@ -411,6 +421,16 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
                             value={line.vatRate}
                           />
                         </Field>
+                        <Field label="Est. cost/unit">
+                          <Input
+                            className="h-9 w-24 text-right"
+                            inputMode="decimal"
+                            placeholder="—"
+                            title="Optional internal cost per unit — projects margin, never shown to the client"
+                            value={line.estimatedUnitCost}
+                            onChange={(e) => updateLine(index, { estimatedUnitCost: e.target.value })}
+                          />
+                        </Field>
                         <div className="ml-auto pb-0.5 text-right">
                           <div className="text-xs text-slate-500">Line total</div>
                           <div className="font-semibold text-slate-900">{formatCurrency(sub)}</div>
@@ -428,7 +448,13 @@ export function EstimateFormDialog({ open, onOpenChange }: EstimateFormDialogPro
             <Textarea id="est-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
-          <div className="flex justify-end gap-8 rounded-md bg-slate-50 px-4 py-3 text-sm">
+          <div className="flex flex-wrap justify-end gap-x-8 gap-y-1 rounded-md bg-slate-50 px-4 py-3 text-sm">
+            {totals.hasCost ? (
+              <>
+                <div className="text-slate-500">Est. cost <span className="ml-2 font-medium text-slate-900">{formatCurrency(totals.estCost)}</span></div>
+                <div className="text-slate-500">Est. margin <span className="ml-2 font-medium text-slate-900">{totals.estMarginPct === null ? '—' : `${totals.estMarginPct.toFixed(1)}%`}</span></div>
+              </>
+            ) : null}
             <div className="text-slate-500">Subtotal <span className="ml-2 font-medium text-slate-900">{formatCurrency(totals.subtotal)}</span></div>
             <div className="text-slate-500">VAT <span className="ml-2 font-medium text-slate-900">{formatCurrency(totals.vat)}</span></div>
             <div className="text-slate-500">Total <span className="ml-2 text-base font-semibold text-slate-900">{formatCurrency(totals.total)}</span></div>

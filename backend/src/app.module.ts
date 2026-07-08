@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
@@ -8,12 +9,14 @@ import { AuthModule } from './auth/auth.module';
 import { ClientsModule } from './clients/clients.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ContractsModule } from './contracts/contracts.module';
+import { CostingModule } from './costing/costing.module';
 import { CrewsModule } from './crews/crews.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DocumentsModule } from './documents/documents.module';
 import { EmployeesModule } from './employees/employees.module';
 import { EquipmentModule } from './equipment/equipment.module';
 import { EstimatesModule } from './estimates/estimates.module';
+import { FinanceAlertsModule } from './finance-alerts/finance-alerts.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { PaymentsModule } from './payments/payments.module';
 import { DailyReportsModule } from './daily-reports/daily-reports.module';
@@ -36,6 +39,7 @@ import { VehiclesModule } from './vehicles/vehicles.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ScheduleModule.forRoot(),
     PrismaModule,
     StorageModule,
     AuditLogModule,
@@ -61,6 +65,8 @@ import { VehiclesModule } from './vehicles/vehicles.module';
     DailyReportsModule,
     TimesheetsModule,
     ExpensesModule,
+    CostingModule,
+    FinanceAlertsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
