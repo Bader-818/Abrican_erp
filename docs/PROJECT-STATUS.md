@@ -1,10 +1,10 @@
 # Abrican ERP — Project Status & Roadmap
 
-_Last updated: 2026-07-02. Living document — the single place to see where the project
+_Last updated: 2026-07-19. Living document — the single place to see where the project
 stands, what's next, and the open risks. For a detailed factual inventory of what exists,
 see the companion [SYSTEM-OVERVIEW.md](SYSTEM-OVERVIEW.md). Other companions:
-[ARCHITECTURE.md](../ARCHITECTURE.md), [PHASE2.md](../PHASE2.md), [docs/audit/](audit/),
-[docs/UAT-SUPABASE.md](UAT-SUPABASE.md)._
+[ARCHITECTURE.md](../ARCHITECTURE.md), [PHASE2.md](../PHASE2.md), [SELF-HOSTING.md](SELF-HOSTING.md),
+[docs/audit/](audit/), [docs/UAT-SUPABASE.md](UAT-SUPABASE.md)._
 
 ---
 
@@ -20,9 +20,9 @@ see the companion [SYSTEM-OVERVIEW.md](SYSTEM-OVERVIEW.md). Other companions:
   [audit/FINDINGS.md](audit/FINDINGS.md).
 - Source is on **GitHub** (private, `main`). A **UAT database is live on Supabase** (synthetic data).
 - **Not yet deployed** to any hosted environment; no real users have tested it yet.
-- Verified size: **51 permissions · 10 roles · 29 Prisma models · 27 enums · 9 migrations**.
-- Tests (runner-authoritative, 2026-07-08): **212 backend unit** (32 files) · **34 e2e**
-  (3 files) · **27 frontend** (4 files) — all green; consistency audit **0 findings**.
+- Verified size: **51 permissions · 10 roles · 29 Prisma models · 27 enums · 10 migrations**.
+- Tests (runner-authoritative, 2026-07-19): **212 backend unit** (32 files) · **34 e2e**
+  (3 files) · **28 frontend** (4 files) — all green; consistency audit **0 findings**.
 
 ---
 
@@ -77,9 +77,12 @@ audit log; notifications; operations & assets dashboards. Docker dev stack.
 - **[docs/audit/JOB-LIFECYCLE.md]** — full state-machine review.
 
 ### Infrastructure
-- GitHub repo connected; all docs and the 2026-07-02 hardening/logic-sweep commits are on
-  `main` and pushed.
+- GitHub repo connected; all work (Phase 2, hardening/logic sweep, UI polish, self-hosting
+  pack) is on `main` and pushed.
 - UAT DB on Supabase (Sydney/session-pooler), migrated + seeded + contract loaded.
+- **Self-hosting pack** — [SELF-HOSTING.md](SELF-HOSTING.md) runbook + `deploy/` (Caddy internal
+  TLS + LAN/VPN subnet allowlist, the Gotenberg sidecar the base prod file omits, PDF-logo mount,
+  and a nightly backup script). Written and config-validated, **not yet run on a real server**.
 
 ---
 
@@ -129,11 +132,15 @@ from the manual status endpoint). Deferred fast-follows within this area:
 - Maintenance management, procurement, inventory, and full analytics/BI.
 
 ### Operational / deployment gaps (see also §5)
-- **No backups / DR** plan (owned + tested) for production.
-- **Never deployed** to a hosted environment; **CI exists but isn't gating** merges.
+- **Backups:** a nightly backup script + runbook now exist (`deploy/backup.sh`,
+  [SELF-HOSTING.md](SELF-HOSTING.md) §11), but they have **not been run or restore-tested on a
+  real deployment**, and there is no off-box/DR copy yet.
+- **Never deployed** to a real environment; **CI exists but isn't gating** merges.
 - **S3 (or shared) storage** needed for multi-server; local FS only today.
-- The **prod backend image** needs the `pdf/assets` logo copied in, and Gotenberg needs
-  outbound access to Google Fonts for Arabic rendering.
+- The **base `docker-compose.prod.yml` still omits Gotenberg** and the prod backend image
+  doesn't bundle the PDF logo — the self-hosting overlay (`deploy/docker-compose.tls.yml`) fixes
+  both, but anyone running the base prod file alone would get failing/unbranded PDFs. Gotenberg
+  also needs outbound access to Google Fonts for Arabic rendering.
 
 ---
 
@@ -147,18 +154,19 @@ from the manual status endpoint). Deferred fast-follows within this area:
 3. **Discovery vs. spreadsheets** — collect every operational sheet/form (like the vehicle &
    contract sheets) and reconcile against the data model *before* more building.
 
-### B. Complete Phase 2 (feature)
-4. **S12 Job Costing & Profitability** — actual cost (labour/vehicle/equipment/expenses),
-   gross margin, estimate-vs-actual; wire `COSTING_REVIEW`/`READY_FOR_INVOICE`.
-5. **S13 Finance Dashboard & Reports** — revenue/expense/profit KPIs, aging, VAT, exports.
-6. **Critical finance alerts** via notifications.
+### B. Phase 2 — DONE ✅
+S12 costing, S13 finance dashboard, and critical finance alerts shipped 2026-07-05 (see §2).
+Remaining fast-follows: the **parametric report suite** (revenue/expense/profit by
+client/service-line/month) + **Excel/PDF export**, and **email/SMS delivery** of the alerts
+(currently in-app only).
 
 ### C. Production readiness (before real data)
-7. **In-Kingdom DB** (Azure KSA / GCP Dammam) + **backups/PITR + DR**.
-8. **Fix pentest items** (§5): admin password, secrets, Swagger gating, deny-by-default
-   guard, multer/deps upgrade.
-9. **Deploy pipeline** — wire CI (the repo has a workflow) to run on push; execute the
-   hardened prod compose; TLS.
+7. **In-Kingdom DB** (Azure KSA / GCP Dammam) + **backups/PITR + DR** + **encryption at rest**.
+8. **Deploy for real** — either the on-premise self-hosting pack ([SELF-HOSTING.md](SELF-HOSTING.md))
+   or a hosted stack; run the backup script + a test restore. (Pentest items P-01…P-08 were
+   already fixed in the 2026-07-02 hardening pass — see §5.)
+9. **Deploy pipeline** — wire CI (the repo has a workflow) to gate on push; add the base prod
+   compose's missing Gotenberg (or standardise on the self-hosting overlay).
 10. **Data migration/import** from the current spreadsheets → the system (cutover plan).
 
 ### D. Compliance & reach
@@ -181,8 +189,10 @@ full analytics/exports.
 2. **The data model keeps trailing the real artifacts.** Every time you've shown a real sheet
    (vehicles, the Aramco contract), it contained fields we hadn't modelled. That's a
    discovery gap — do a deliberate artifact-collection pass instead of patching field-by-field.
-3. **No backups / DR.** There is still no backup strategy. This must exist *before* any real
-   data lands. Supabase UAT has provider backups, but production needs an owned, tested plan.
+3. **Backups exist on paper, not in practice.** There's now a nightly backup script + runbook
+   (`deploy/backup.sh`, [SELF-HOSTING.md](SELF-HOSTING.md) §11), but it hasn't been run,
+   restore-tested, or given an off-box/DR copy. Do that *before* any real data lands. Supabase
+   UAT has provider backups; production needs an owned, tested plan.
 4. **Security items — CLOSED 2026-07-02.** All 8 PENTEST findings are fixed and re-verified
    ([docs/audit/PENTEST.md](audit/PENTEST.md) remediation section). Remaining owner actions:
    **rotate the UAT Supabase password** (was pasted in chat) and set a strong `ADMIN_PASSWORD`
@@ -190,8 +200,9 @@ full analytics/exports.
 5. **Compliance is a hard gate you haven't started.** PDPL + Aramco in-Kingdom residency and
    **ZATCA Phase-2** are legal requirements, not nice-to-haves. UAT on a Sydney Supabase is
    fine *only* with synthetic data; do not put real client/employee data there.
-6. **Deployment has never actually happened.** The prod compose is hardened but unrun; CI
-   exists but isn't gating pushes to the new GitHub repo. "Works on my machine" ≠ shippable.
+6. **Deployment has never actually happened.** The prod compose + the on-premise self-hosting
+   pack are written and config-validated, but **unrun on a real server**; CI exists but isn't
+   gating pushes. "Works on my machine" ≠ shippable until it's actually stood up and UAT'd.
 7. **Bus factor = 1.** One person + AI. No ops runbook, no second maintainer, no on-call.
    Fine for now; a liability once it's business-critical.
 8. **Dead lifecycle states — resolved 2026-07-02.** Hidden from the manual picker; backend

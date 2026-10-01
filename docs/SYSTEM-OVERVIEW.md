@@ -1,14 +1,14 @@
 # Abrican ERP — System Overview
 
-_Last updated: 2026-07-05. A **factual reference** of what the system actually contains today,
+_Last updated: 2026-07-19. A **factual reference** of what the system actually contains today,
 grounded in the code (not aspirations). Every "exists" claim below traces to a real file,
 route, model, or enum. For status/roadmap and what's **not** built, see
 [PROJECT-STATUS.md](PROJECT-STATUS.md). Companion docs: [ARCHITECTURE.md](../ARCHITECTURE.md),
-[PHASE2.md](../PHASE2.md), [docs/audit/](audit/)._
+[PHASE2.md](../PHASE2.md), [SELF-HOSTING.md](SELF-HOSTING.md), [docs/audit/](audit/)._
 
-> Numbers verified 2026-07-05 (after Phase-2 completion — S12/S13/finance alerts):
-> **51 permissions · 10 roles · 29 Prisma models · 27 enums · 9 migrations ·
-> 204 backend unit tests (32 files) · 33 e2e tests (3 files) · 27 frontend tests (4 files)**.
+> Numbers verified 2026-07-19 (runner-authoritative for tests):
+> **51 permissions · 10 roles · 29 Prisma models · 27 enums · 10 migrations ·
+> 212 backend unit tests (32 files) · 34 e2e tests (3 files) · 28 frontend tests (4 files)**.
 
 ---
 
@@ -69,8 +69,9 @@ Infrastructure modules (not user-facing features): **prisma** (ORM provider), **
 
 ## 3. Frontend map
 Router: [App.tsx](../frontend/src/App.tsx) (React Router v6, nested layouts, per-route
-`permission` guard). 21 page folders under [frontend/src/pages/](../frontend/src/pages/); a
-matching API layer of 23 modules under [frontend/src/api/](../frontend/src/api/).
+`permission` guard). 20 page folders under [frontend/src/pages/](../frontend/src/pages/)
+(the `resources` folder holds employees/crews/vehicles/equipment); an API layer of 23 domain
+modules plus a shared axios client (24 files) under [frontend/src/api/](../frontend/src/api/).
 
 | Area | Route(s) | Screen does |
 |---|---|---|
@@ -120,21 +121,22 @@ CLOSED, CANCELLED, INACTIVE), outline (NO_EXPIRY, NOT_APPLICABLE, LIGHT).
 - **TOTP MFA** (`otplib`, issuer "Abrican ERP") — setup → enable → disable flow; QR enrol.
 - **Force password change** — `mustChangePassword` blocks all but whitelisted routes.
 
-**Global guards** (order in [app.module.ts](../backend/src/app.module.ts)):
-`JwtAuthGuard` → `PermissionsGuard` → `MustChangePasswordGuard` → `ThrottlerGuard`
-(120 req/60s global; login throttled tighter).
+**Global guards** (registration order in [app.module.ts](../backend/src/app.module.ts)):
+`ThrottlerGuard` → `JwtAuthGuard` → `PermissionsGuard` → `MustChangePasswordGuard`
+(120 req/60s global; login throttled tighter at 5/60s).
 
 **RBAC** — permissions are declared with
 [`@RequirePermissions`](../backend/src/common/decorators/require-permissions.decorator.ts)
-(AND semantics). The catalog of **48 permission keys** and **10 roles** is seeded in
+(AND semantics). The catalog of **51 permission keys** and **10 roles** is seeded in
 [seed.ts](../backend/prisma/seed.ts):
 
 - **Permission domains:** `auth.me`; `users.*`, `roles.*`, `audit_logs.view`; `clients.*`,
-  `contracts.*`, `purchase_orders.*`; `jobs.*` (incl. `status_change`, `status_override`);
-  `employees.*`, `crews.*`, `vehicles.*`, `equipment.*`; `assignments.*` (incl. `override`);
-  `documents.*`, `dashboard.operations.view`, `dashboard.assets.view`; `estimates.*`,
-  `invoices.*`, `payments.*`, `daily_reports.*`, `timesheets.*`, `expenses.*` (finance domains
-  carry `.view`/`.manage`/`.approve` as applicable).
+  `contracts.*`, `purchase_orders.*`; `jobs.*` (incl. `status_change`, `status_override`,
+  `costing_view`, `costing_review`); `employees.*`, `crews.*`, `vehicles.*`, `equipment.*`;
+  `assignments.*` (incl. `override`); `documents.*`, `dashboard.operations.view`,
+  `dashboard.assets.view`, `dashboard.finance.view`; `estimates.*`, `invoices.*`, `payments.*`,
+  `daily_reports.*`, `timesheets.*`, `expenses.*` (finance domains carry
+  `.view`/`.manage`/`.approve` as applicable).
 - **Roles:** Admin (all), CEO/GM (broad view + `jobs.status_override`), Operations Manager,
   Finance Manager, Accountant, Field Supervisor, Maintenance Manager, HR/Admin Officer,
   Procurement Officer, Viewer/Auditor (read-only).
@@ -193,7 +195,9 @@ Flow:
    lines; VAT is forced to the default rate. Bilingual PDF via Gotenberg. Approve → convert
    to a Job (copies estimate total to `jobValue`).
 2. **Invoice** — built from actuals, 15% VAT, checks PO balance, renders a **ZATCA Phase-1
-   QR** PDF, and on issue sets the job to `INVOICED`.
+   QR** PDF, and on issue sets the job to `INVOICED`. The sequential invoice number
+   (`Invoice.invoiceNumber`, nullable) is assigned **inside the issue transaction**, not at
+   draft creation — so deleting a draft never leaves a gap in the legal numbering (F-012).
 3. **Payment** — full/partial; drives `PARTIALLY_PAID`/`PAID`; feeds the **aging** report.
 
 Job **finance** status is only advanced by
@@ -222,7 +226,8 @@ advances to READY_FOR_INVOICE. They (and INVOICED/PARTIALLY_PAID/PAID) are on th
 ## 8. Cross-cutting services
 - **Audit log** — 15 `AuditAction` types; mutating operations record old/new value, IP,
   user-agent. Coverage verified by `audit-coverage.mjs`.
-- **Notifications** — 8 types; created by system events (e.g. token-reuse security alert).
+- **Notifications** — 15 types (8 operational + 7 finance alerts); created by system events
+  (e.g. token-reuse security alert, overdue-invoice / over-budget finance alerts).
 - **PDF** — [pdf.service.ts](../backend/src/pdf/pdf.service.ts) posts HTML to Gotenberg;
   bilingual EN/AR financial documents, number-to-words, QR.
 - **Storage** — [IStorageService](../backend/src/storage/storage.interface.ts) with a local-FS
@@ -235,21 +240,22 @@ advances to READY_FOR_INVOICE. They (and INVOICED/PARTIALLY_PAID/PAID) are on th
 ---
 
 ## 9. Quality & tests (verified counts)
-- **Backend unit:** 204 tests across 32 `*.spec.ts` (finance line-math, **costing math**,
+- **Backend unit:** 212 tests across 32 `*.spec.ts` (finance line-math, **costing math**,
   **finance-alert thresholds**, **finance-dashboard aggregation**, job-status machine,
-  auth/lockout/reuse, conflict detection, utilization, pagination, plus per-service specs).
-- **E2E:** 33 tests across 3 files — `app.e2e-spec.ts`, `rbac.e2e-spec.ts`,
-  `finance-flow.e2e-spec.ts` (now covers the cost-review → ready-for-invoice path + finance
-  dashboard); run against a real Postgres.
-- **Frontend:** 27 tests across 4 `*.test.ts` (formatters, api-error, job-status mirror,
+  self-approval blocks, auth/lockout/reuse, conflict detection, utilization, pagination, plus
+  per-service specs).
+- **E2E:** 34 tests across 3 files — `app.e2e-spec.ts`, `rbac.e2e-spec.ts`,
+  `finance-flow.e2e-spec.ts` (covers the cost-review → ready-for-invoice path, finance
+  dashboard, and issue-time invoice numbering); run against a real Postgres.
+- **Frontend:** 28 tests across 4 `*.test.ts` (formatters, api-error, job-status mirror,
   chart utilities). No component/browser tests.
-- **Migrations (9):** `20260611124447_init`, `..._add_polymorphic_check_constraints`,
+- **Migrations (10):** `20260611124447_init`, `..._add_polymorphic_check_constraints`,
   `20260615114913_auth_hardening`, `20260617083930_phase2_finance`,
   `20260618084831_account_security`, `20260618093300_field_reports_timesheets`,
   `20260618114050_expenses`, `20260622102841_vehicle_fleet_fields`,
-  `20260705113208_finance_alert_notifications`.
-- **Pentest:** [docs/audit/PENTEST.md](audit/PENTEST.md) — no CRITICALs; 8 findings
-  (P-01…P-08) currently open (config/hardening; see PROJECT-STATUS §5).
+  `20260705113208_finance_alert_notifications`, `20260708081521_invoice_number_at_issue`.
+- **Pentest:** [docs/audit/PENTEST.md](audit/PENTEST.md) — no CRITICALs; all 8 findings
+  (P-01…P-08) **fixed** in the 2026-07-02 hardening pass (see PROJECT-STATUS §5).
 
 ---
 
@@ -261,7 +267,13 @@ advances to READY_FOR_INVOICE. They (and INVOICED/PARTIALLY_PAID/PAID) are on th
 
 **Docker:** [docker-compose.yml](../docker-compose.yml) (dev: db, gotenberg, backend,
 frontend) and [docker-compose.prod.yml](../docker-compose.prod.yml) (same-origin, internal
-db/backend, published web port only). Multi-stage Dockerfiles for backend + frontend.
+db/backend, published web port only — note it does **not** include Gotenberg). Multi-stage
+Dockerfiles for backend + frontend.
+
+**Self-hosting pack:** [deploy/docker-compose.tls.yml](../deploy/docker-compose.tls.yml) layers
+Caddy (internal TLS + LAN/VPN subnet allowlist) + the Gotenberg sidecar onto the prod stack and
+mounts the PDF logo; [deploy/backup.sh](../deploy/backup.sh) does nightly DB + file backups.
+Full on-premise runbook (LAN + WireGuard, whitelisted users): [SELF-HOSTING.md](SELF-HOSTING.md).
 
 **CI:** `.github/workflows/ci.yml` — backend job (build + migrate + seed + unit + e2e +
 `npm audit`) and frontend job (build + unit + audit). It exists but is **not currently gating**
