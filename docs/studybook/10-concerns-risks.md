@@ -17,9 +17,10 @@ implemented today.**
 2. **The data model trails the real artifacts.** Every time a real sheet appeared
    (the vehicle fleet, the Aramco contract), it had fields that weren't modelled. Do a
    deliberate artifact-collection pass rather than patching field-by-field.
-3. **Backups exist on paper, not in practice.** `deploy/backup.sh` + the runbook exist
-   but have **never been run, restore-tested, or given an off-box/DR copy**. Do this
-   *before* any real data lands.
+3. **Backups proven locally, not yet in production.** `deploy/backup.sh` was
+   restore-tested locally on 2026-10-01 (all 30 tables matched) and an env-loading bug that
+   aborted it was fixed. Still to do *before* real data lands: run it on the real server via
+   cron and keep an **off-box/DR copy**.
 4. **Security findings — CLOSED.** All 8 pentest findings fixed & re-verified
    (2026-07-02). Remaining owner actions: **rotate the UAT Supabase password** (was
    pasted in chat once) and set a strong `ADMIN_PASSWORD` on the next fresh seed.

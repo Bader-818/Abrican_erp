@@ -132,9 +132,11 @@ from the manual status endpoint). Deferred fast-follows within this area:
 - Maintenance management, procurement, inventory, and full analytics/BI.
 
 ### Operational / deployment gaps (see also §5)
-- **Backups:** a nightly backup script + runbook now exist (`deploy/backup.sh`,
-  [SELF-HOSTING.md](SELF-HOSTING.md) §11), but they have **not been run or restore-tested on a
-  real deployment**, and there is no off-box/DR copy yet.
+- **Backups:** a nightly backup script + runbook exist (`deploy/backup.sh`,
+  [SELF-HOSTING.md](SELF-HOSTING.md) §11). 2026-10-01: dump + restore **validated locally**
+  (scratch-DB restore, all 30 tables' row counts identical) and a bug that made the script abort
+  before backing anything up was fixed. Still **not run on a real deployment**, and there is no
+  off-box/DR copy yet.
 - **Never deployed** to a real environment; **CI exists but isn't gating** merges.
 - **S3 (or shared) storage** needed for multi-server; local FS only today.
 - The **base `docker-compose.prod.yml` still omits Gotenberg** and the prod backend image
@@ -189,10 +191,12 @@ full analytics/exports.
 2. **The data model keeps trailing the real artifacts.** Every time you've shown a real sheet
    (vehicles, the Aramco contract), it contained fields we hadn't modelled. That's a
    discovery gap — do a deliberate artifact-collection pass instead of patching field-by-field.
-3. **Backups exist on paper, not in practice.** There's now a nightly backup script + runbook
-   (`deploy/backup.sh`, [SELF-HOSTING.md](SELF-HOSTING.md) §11), but it hasn't been run,
-   restore-tested, or given an off-box/DR copy. Do that *before* any real data lands. Supabase
-   UAT has provider backups; production needs an owned, tested plan.
+3. **Backups proven locally, not yet in production.** The nightly script + runbook
+   (`deploy/backup.sh`, [SELF-HOSTING.md](SELF-HOSTING.md) §11) were restore-tested locally on
+   2026-10-01 (identical row counts in all 30 tables), and a bug that made the script abort on
+   the shipped `.env.production` (it `source`d the file; `ADMIN_NAME=System Administrator`
+   broke it) was fixed. Still to do *before* real data lands: run it on the server via cron and
+   copy backups off-box. Supabase UAT has provider backups; production needs an owned plan.
 4. **Security items — CLOSED 2026-07-02.** All 8 PENTEST findings are fixed and re-verified
    ([docs/audit/PENTEST.md](audit/PENTEST.md) remediation section). Remaining owner actions:
    **rotate the UAT Supabase password** (was pasted in chat) and set a strong `ADMIN_PASSWORD`

@@ -19,8 +19,16 @@ BACKUP_DIR="${BACKUP_DIR:-/var/backups/abrican}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 STAMP="$(date +%F_%H%M)"
 
-# Load POSTGRES_USER / POSTGRES_DB.
-set -a; . "$ENV_FILE"; set +a
+# Read POSTGRES_USER / POSTGRES_DB without executing the env file: it is a
+# Compose env file, not a shell script (e.g. `ADMIN_NAME=System Administrator`
+# or a secret containing `$`/`&` would break or abort a `source`).
+env_get() {
+  { grep -E "^$1=" "$ENV_FILE" || true; } | tail -n1 | cut -d= -f2- | sed -E "s/^[\"']//; s/[\"']$//"
+}
+POSTGRES_USER="$(env_get POSTGRES_USER)"
+POSTGRES_DB="$(env_get POSTGRES_DB)"
+: "${POSTGRES_USER:?POSTGRES_USER not set in $ENV_FILE}"
+: "${POSTGRES_DB:?POSTGRES_DB not set in $ENV_FILE}"
 
 COMPOSE="docker compose -f docker-compose.prod.yml -f deploy/docker-compose.tls.yml --env-file $ENV_FILE"
 
